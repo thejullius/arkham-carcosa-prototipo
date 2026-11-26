@@ -1,0 +1,1494 @@
+<title>Dois Focos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+/* Deliberately dark-only "game table" look: every color is defined on bare :root. */
+:root{
+  color-scheme: dark;
+  --bg:#0b0d0c; --panel:rgba(18,20,22,.88); --panel-solid:#15171a; --panel-2:#23272b; --panel-3:#2d3237;
+  --ink:#ece6d6; --ink-dim:#a9a293; --line:rgba(236,230,214,.16);
+  --gold:#d9b25f; --gold-ink:#1a1408; --legal:#4fe3c1; --legal-soft:rgba(79,227,193,.35);
+  --guardian:#3d7bd9; --seeker:#e0b532; --neutral:#9a958a; --hp:#e0574f; --san:#5b8ee8; --ammo:#e3b25a;
+  --ok:#5bd38a; --bad:#ef5b5b; --focus:#ffd479; --shadow:rgba(0,0,0,.55);
+  --gl:max(16px, env(safe-area-inset-left, 0px)); --gr:max(16px, env(safe-area-inset-right, 0px));
+  --font-title:"Cinzel",Georgia,serif; --font-text:"Crimson Pro",Georgia,serif;
+  --font-ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+[hidden]{display:none !important}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hidden;font-family:var(--font-ui);-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#scene{position:fixed;inset:0;touch-action:none;cursor:grab}
+#scene.hover{cursor:pointer}
+#scene canvas{display:block;width:100%;height:100%}
+#fx{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.float{position:absolute;font:700 22px var(--font-title);color:var(--bad);text-shadow:0 2px 6px #000;transform:translate(-50%,-50%);white-space:nowrap}
+.float.am{color:var(--ammo);font-size:17px}
+.float.ok{color:var(--ok)} .float.miss{color:var(--ink)}
+#ui{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;box-sizing:border-box;
+  padding:max(8px, env(safe-area-inset-top,0px)) var(--gr) max(8px, env(safe-area-inset-bottom,0px)) var(--gl)}
+#ui > header, #ui > aside, .edge{pointer-events:auto}
+#hud{display:flex;flex-direction:column;gap:6px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.brand{display:flex;flex-direction:column;line-height:1.15;margin-right:auto;min-width:0}
+.logo{font:700 15px var(--font-title);color:var(--gold);letter-spacing:.06em}
+.scn{font-size:12px;color:var(--ink-dim)}
+.scn b{color:var(--ink)}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-size:12.5px;font-weight:600;cursor:pointer;backdrop-filter:blur(6px)}
+.btn:hover{background:var(--panel-3)}
+.btn[aria-expanded="true"],.btn.on{border-color:var(--gold);color:var(--gold)}
+/* seat switcher */
+.seats{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel)}
+.seats button{border:0;background:none;padding:6px 9px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px}
+.seats button[aria-pressed="true"]{background:var(--panel-3);color:var(--gold)}
+.seats .sd{width:8px;height:8px;border-radius:50%}
+/* mat labels: projected HTML over Mark's playmat (the mat is the single readable source) */
+#tags{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.tag3{position:absolute;left:0;top:0;white-space:nowrap;font:700 13px var(--font-ui);font-variant-numeric:tabular-nums;color:var(--ink);
+  background:rgba(10,12,14,.84);border:1px solid var(--line);border-radius:7px;padding:2px 7px;box-shadow:0 2px 8px var(--shadow)}
+.tag3 i{font-style:normal;font:700 10px var(--font-ui);letter-spacing:.06em;color:var(--ink-dim);margin-right:3px}
+.tag3 small{font-size:11px;color:var(--ink-dim)}
+.t-hp b{color:var(--hp)} .t-san b{color:var(--san)} .t-rs b{color:var(--gold)} .t-cl b{color:#6fe0a6} .t-act b{color:var(--gold)} .t-a-fortyFive b{color:var(--ammo)}
+.bump{animation:bump .7s ease-out}
+@keyframes bump{30%{scale:1.35;background:#5a3d10}}
+/* keyboard hit-targets projected over clickable 3D objects (Tab cycles, Enter acts) */
+#hits{position:fixed;inset:0;pointer-events:none}
+.hit{position:absolute;left:0;top:0;margin:0;padding:0;border:0;background:none;border-radius:10px;pointer-events:none}
+.hit:focus-visible{outline:3px solid var(--focus);outline-offset:3px;box-shadow:0 0 0 7px rgba(255,212,121,.22)}
+/* tooltip beside the hovered object: what you can do there */
+#tip{position:fixed;left:0;top:0;z-index:8;width:max-content;max-width:min(300px, calc(100vw - 32px));box-sizing:border-box;background:var(--panel-solid);border:1px solid var(--legal);
+  border-radius:12px;padding:9px 12px;box-shadow:0 10px 28px var(--shadow);pointer-events:none;font-size:12.5px;line-height:1.35}
+#tip.menu{pointer-events:auto;border-color:var(--gold)}
+.tt-h{font:700 14px var(--font-title);color:var(--gold)}
+.tt-i{color:var(--ink-dim);margin-top:3px}
+.tt-t{font:italic 14px/1.3 var(--font-text);margin-top:4px}
+.tt-a{list-style:none;margin:7px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.tt-a li{display:flex;flex-direction:column;border-left:2px solid var(--legal);padding-left:7px}
+.tt-a span{color:var(--ink-dim);font-size:11.5px}
+.tt-k{margin-top:7px;font-size:11.5px;color:var(--legal)}
+.tt-btns{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:8px}
+/* focus toggle */
+.fwrap{display:flex;justify-content:center;align-items:center;gap:8px}
+#toggle{display:flex;position:relative;background:var(--panel-solid);border:1px solid var(--gold);border-radius:999px;padding:3px;box-shadow:0 6px 20px var(--shadow);touch-action:none;user-select:none;-webkit-user-select:none}
+#toggle button{position:relative;z-index:1;border:0;background:none;border-radius:999px;padding:7px 14px;font:700 13px var(--font-title);letter-spacing:.04em;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--ink-dim);white-space:nowrap}
+#toggle button[aria-pressed="true"]{color:var(--gold-ink)}
+#toggle .thumb{position:absolute;top:3px;bottom:3px;left:3px;border-radius:999px;background:var(--gold);transition:transform .3s cubic-bezier(.2,.8,.2,1),width .3s}
+#toggle.peek .thumb{background:repeating-linear-gradient(135deg,var(--gold) 0 8px,#b8913f 8px 16px)}
+.bdg{min-width:18px;height:18px;border-radius:9px;display:inline-grid;place-items:center;font:700 11px var(--font-ui);background:var(--legal);color:#04221b;padding:0 4px;box-sizing:border-box}
+.bdg.z{background:var(--panel-3);color:var(--ink-dim)}
+.khint{font-size:11px;color:var(--ink-dim)}
+.khint kbd{font:600 10.5px var(--font-ui);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--panel-2)}
+#peekTag{font:700 11px var(--font-ui);letter-spacing:.08em;color:var(--gold-ink);background:var(--gold);border-radius:6px;padding:3px 8px}
+/* "where am I": edge handle that also switches */
+.edge{position:absolute;left:50%;transform:translateX(-50%);background:linear-gradient(var(--panel-solid),var(--panel));border:1px solid var(--line);border-radius:10px;padding:4px 12px;font:600 12px var(--font-ui);color:var(--ink-dim);cursor:pointer;white-space:nowrap;z-index:1}
+.edge:hover{color:var(--gold);border-color:var(--gold)}
+#edgeUp{top:calc(var(--top,150px) + 2px)}
+#edgeDown{bottom:var(--bot,160px)}
+.spacer{flex:1;pointer-events:none}
+#bottom{pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:6px}
+#hand{display:flex;justify-content:center;align-items:flex-end;pointer-events:none;width:100%;max-width:900px;height:var(--hh);transition:height .3s;--hw:120px;--hh:150px}
+#ui.v-mesa #hand{--hw:54px;--hh:58px}
+.hc{pointer-events:auto;width:var(--hw);aspect-ratio:300/420;margin:0 -6px;border:0;padding:0;background:none;border-radius:7px;cursor:pointer;flex:none;align-self:flex-start;
+  transform:translateY(var(--y,0)) rotate(var(--r,0));transform-origin:50% 130%;transition:transform .22s cubic-bezier(.2,.8,.2,1),width .3s;position:relative}
+.hc img{width:100%;height:100%;border-radius:7px;display:block;box-shadow:0 8px 18px var(--shadow)}
+.hc:hover,.hc:focus-visible{transform:translateY(-40px) rotate(0) scale(1.35);z-index:5}
+#ui.v-mesa .hc:hover,#ui.v-mesa .hc:focus-visible{transform:translateY(-110px) scale(2.3)}
+.hc.legal img{box-shadow:0 0 0 2px var(--legal),0 0 18px 3px var(--legal-soft);animation:pulse 1.4s ease-in-out infinite}
+.hc.hl img{box-shadow:0 0 0 3px var(--legal),0 0 26px 8px var(--legal-soft)}
+.hc.committed{--y:-24px}
+.hc.committed img{box-shadow:0 0 0 3px var(--gold),0 0 22px 4px rgba(217,178,95,.5)}
+.hc.dim img{filter:saturate(.45) brightness(.62)}
+.hc .tag,.cc .tag{position:absolute;left:50%;top:-8px;transform:translateX(-50%);background:var(--gold);color:var(--gold-ink);font:700 9px var(--font-ui);padding:2px 6px;border-radius:6px;white-space:nowrap}
+@keyframes pulse{50%{box-shadow:0 0 0 2px var(--legal),0 0 6px 1px var(--legal-soft)}}
+.chip{font:600 12.5px var(--font-ui);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:7px 12px;cursor:pointer;text-align:left}
+.chip:hover,.chip:focus-visible{background:var(--panel-3)}
+.chip:disabled{opacity:.45;cursor:default}
+.chip.primary{background:var(--gold);color:var(--gold-ink);border-color:var(--gold)}
+.hc.fresh img{box-shadow:0 0 0 3px var(--gold),0 0 26px 8px rgba(217,178,95,.6);animation:fresh 1.4s ease-out}
+@keyframes fresh{0%{transform:translateY(-40px) scale(1.2)}100%{transform:none}}
+aside.panel{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(8px);box-shadow:0 12px 32px var(--shadow);box-sizing:border-box}
+#log{right:var(--gr);top:calc(var(--top,150px) + 36px);width:270px;max-height:34%;display:flex;flex-direction:column;overflow:hidden}
+.panel h2{font:700 12px var(--font-title);letter-spacing:.08em;margin:0;padding:9px 12px;border-bottom:1px solid var(--line);color:var(--gold)}
+#logl{list-style:none;margin:0;padding:6px 12px 10px;overflow:auto;font-size:12.5px;line-height:1.4}
+#logl li{padding:3px 0;border-bottom:1px dashed rgba(236,230,214,.08)}
+#logl li.ok{color:var(--ok)} #logl li.bad{color:var(--bad)} #logl li.sys{color:var(--ink-dim);font-style:italic}
+/* BIG ACTION MODAL: one target (location / enemy), its actions, and the skill test, all in one place */
+#modal{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(3,5,4,.58);box-sizing:border-box;
+  padding:max(12px, env(safe-area-inset-top,0px)) var(--gr) max(12px, env(safe-area-inset-bottom,0px)) var(--gl);animation:fade .25s ease-out}
+@keyframes fade{from{opacity:0}}
+.mbox{box-sizing:border-box;width:min(1280px,85vw);height:85vh;max-height:100%;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--gold);border-radius:16px;
+  box-shadow:0 24px 60px rgba(0,0,0,.8);backdrop-filter:blur(10px);overflow:hidden;animation:rise .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(18px) scale(.97);opacity:0}}
+.mhead{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.mhead h2{margin:0;font:700 18px var(--font-title);color:var(--gold)}
+.mhead .lbl{margin-right:auto}
+.xbtn{width:36px;height:36px;border-radius:50%;background:var(--panel-solid);border:1px solid var(--line);cursor:pointer;flex:none}
+.mcols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1fr) minmax(0,1.3fr);gap:18px;padding:14px 16px;overflow:auto}
+.mcols > section{min-width:0}
+.mcols h3{margin:0 0 6px;font:700 12px var(--font-title);letter-spacing:.08em;color:var(--gold)}
+#mCard img{display:block;width:100%;max-width:300px;max-height:52vh;object-fit:contain;margin:0 auto;border-radius:12px;box-shadow:0 10px 26px var(--shadow)}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:10px 0 0;font-size:13px}
+.facts dt{color:var(--ink-dim)} .facts dd{margin:0}
+.act{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:8px;cursor:pointer}
+.act:hover:not(:disabled){border-color:var(--legal);background:var(--panel-3)}
+.act b{font:700 14px var(--font-title)}
+.act span{font-size:12px;color:var(--ink-dim)}
+.act .tst{color:var(--legal)}
+.act:disabled{opacity:.4;cursor:default}
+.act.on{opacity:1;border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.empty,.hint{color:var(--ink-dim);font-size:13px;line-height:1.45}
+.sec{margin-top:12px}
+.commits{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0}
+.cc{width:88px;padding:0;border:0;background:none;border-radius:8px;cursor:pointer;position:relative}
+.cc img{width:100%;display:block;border-radius:8px;box-shadow:0 0 0 2px var(--legal-soft)}
+.cc[aria-pressed="true"]{transform:translateY(-6px)}
+.cc[aria-pressed="true"] img{box-shadow:0 0 0 3px var(--gold),0 0 18px 4px rgba(217,178,95,.5)}
+.uses{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:6px 0}
+.uses .note{font-size:12.5px;color:var(--ammo)}
+.bigtok.spin{border-color:var(--ink-dim);animation:spin .45s linear infinite}
+@keyframes spin{to{transform:rotateY(360deg)}}
+@media (max-width:900px){ .mcols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} #mTest{grid-column:1/-1} }
+.eq{display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:13px}
+.term{background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:3px 7px}
+.term.c{border-color:var(--gold);color:var(--gold)}
+.eq .tot{font:700 20px var(--font-title)}
+.prob{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center;margin:10px 0 6px}
+.pct{font:700 30px var(--font-title);grid-row:span 2;font-variant-numeric:tabular-nums}
+.bar{height:8px;background:var(--panel-3);border-radius:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--ok));transition:width .4s}
+.lbl{font-size:11.5px;color:var(--ink-dim)}
+.toks{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+.tk{min-width:30px;height:30px;border-radius:50%;display:inline-grid;place-items:center;font:700 12px var(--font-ui);background:#1b1a19;border:2px solid;position:relative;cursor:help;padding:0 3px;box-sizing:border-box}
+.tk.p{border-color:var(--ok)} .tk.f{border-color:var(--bad);color:#f6b0b0}
+.tk sub{position:absolute;right:-5px;bottom:-5px;font-size:9px;background:var(--panel-solid);border-radius:6px;padding:0 3px;color:var(--ink-dim)}
+.res{display:flex;align-items:center;gap:12px;margin-top:8px;min-height:56px}
+.bigtok{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font:700 22px var(--font-title);background:radial-gradient(#2b2926,#111);border:3px solid var(--gold);animation:flip .7s cubic-bezier(.2,.8,.2,1)}
+@keyframes flip{from{transform:rotateY(180deg) scale(.4);opacity:0}to{transform:none;opacity:1}}
+.verdict{font:700 22px var(--font-title);letter-spacing:.06em}
+.verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)}
+.calc{font-size:12.5px;color:var(--ink-dim)}
+.drawing{font-style:italic;color:var(--ink-dim);animation:breathe 1s ease-in-out infinite}
+@keyframes breathe{50%{opacity:.4}}
+.acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+#notes{right:var(--gr);top:var(--top,150px);width:min(460px, calc(100% - 32px));max-height:calc(100% - var(--top,150px) - 16px);overflow:auto;padding:0 0 12px;z-index:6}
+#notes .nb{padding:4px 14px;font:15px/1.5 var(--font-text)}
+#notes h4{font:700 12px var(--font-title);letter-spacing:.06em;color:var(--gold);margin:12px 0 4px}
+#notes ul{margin:4px 0;padding-left:18px}
+#notes code{font-size:12px;background:var(--panel-2);padding:0 4px;border-radius:4px}
+#lolaP{left:var(--gl);top:calc(var(--top,150px) + 36px);width:min(330px, calc(100% - 32px));padding:0 0 12px;z-index:5}
+#lolaP .lb{padding:8px 12px;font-size:12.5px}
+.role{display:inline-block;background:var(--seeker);color:#241a00;font:700 10.5px var(--font-ui);padding:2px 7px;border-radius:6px;letter-spacing:.05em}
+.lh{display:flex;gap:6px;margin-top:8px}
+.lh button{flex:1;padding:0;border:0;background:none;cursor:pointer;border-radius:6px}
+.lh img{width:100%;border-radius:6px;display:block}
+#toast{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);background:var(--panel-solid);border:1px solid var(--gold);border-radius:12px;padding:10px 16px;font-size:13.5px;max-width:min(380px, calc(100% - 32px));text-align:center;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast.on{opacity:1}
+#err{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--ink-dim)}
+@media (max-width:700px){
+  .scn{display:none} .logo{font-size:13px}
+  .khint{display:none}
+  #toggle button{padding:7px 11px;font-size:12px}
+  #hand{--hw:74px;--hh:100px}
+  #ui.v-mesa #hand{--hw:40px;--hh:44px}
+  .hc:hover,.hc:focus-visible{transform:translateY(-30px) scale(1.3)}
+  #ui.v-mesa .hc:hover,#ui.v-mesa .hc:focus-visible{transform:translateY(-70px) scale(2.2)}
+  #log{width:calc(100% - 32px);left:var(--gl);right:auto;max-height:30%}
+  .tag3{font-size:11px;padding:1px 5px} .tag3 .nm{display:none}
+  /* phone: the action modal goes full-screen and scrolls inside */
+  #modal{padding:0}
+  .mbox{width:100%;height:100%;border:0;border-radius:0;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+  .mhead{padding-left:var(--gl);padding-right:var(--gr)} .mhead .lbl{display:none}
+  .mcols{display:flex;flex-direction:column;padding:12px var(--gr) 16px var(--gl)}
+  .mcols > section{flex:none}
+  #mCard img{max-height:34vh;max-width:200px}
+  .cc{width:72px}
+  .pct{font-size:24px}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important}
+}
+</style>
+
+<div id="scene" role="img" aria-label="3D game table with two zones: the Curtain Call map and Mark Harrigan's play area. Every action lives on its object: hover or Tab to a highlighted object to see its actions, click or Enter to act."></div>
+<div id="tags" aria-hidden="true" hidden></div>
+<div id="fx" aria-hidden="true"></div>
+<div id="ui" class="v-mesa">
+  <header id="hud">
+    <div class="row">
+      <div class="brand"><span class="logo">DOIS FOCOS</span><span class="scn"><b>Curtain Call</b> · Round 2 · Investigation</span></div>
+      <div class="seats" role="group" aria-label="Seat">
+        <button id="seatMark" aria-pressed="true"><span class="sd" style="background:var(--guardian)"></span>Mark</button>
+        <button id="seatLola" aria-pressed="false" aria-controls="lolaP"><span class="sd" style="background:var(--seeker)"></span>Lola</button>
+      </div>
+      <button class="btn" id="bLog" aria-expanded="true" aria-controls="log">Log</button>
+      <button class="btn" id="bNotes" aria-expanded="false" aria-controls="notes">Notas</button>
+      <button class="btn" id="bReset">Reset</button>
+    </div>
+    <div class="fwrap">
+      <div id="toggle" role="group" aria-label="Camera focus (hold to peek)">
+        <span class="thumb" aria-hidden="true"></span>
+        <button data-f="mesa" aria-pressed="true">Mesa <span class="bdg" id="bdgMesa">0</span></button>
+        <button data-f="mine" aria-pressed="false">Minha área <span class="bdg" id="bdgMine">0</span></button>
+      </div>
+      <span id="peekTag" hidden>PEEK</span>
+      <span class="khint"><kbd>Space</kbd> switch · hold <kbd>Shift</kbd> peek · <kbd>Tab</kbd> objects</span>
+    </div>
+  </header>
+  <div id="hits" role="group" aria-label="Table objects with actions (Tab to reach, Enter to act)"></div>
+  <button class="edge" id="edgeUp" hidden>▲ Mesa · Curtain Call map</button>
+  <div class="spacer"></div>
+  <div id="bottom">
+    <button class="edge" id="edgeDown" style="position:relative;left:auto;transform:none;bottom:auto">▼ Minha área · Mark's mat &amp; hand</button>
+    <div id="hand" aria-label="Mark Harrigan's hand"></div>
+  </div>
+  <aside id="log" class="panel"><h2>GAME LOG</h2><ol id="logl"></ol></aside>
+  <aside id="lolaP" class="panel" hidden></aside>
+  <aside id="notes" class="panel" hidden>
+    <h2>NOTAS DE DESIGN · DIREÇÃO D — "DOIS FOCOS"</h2>
+    <div class="nb">
+      <h4>v2 — feedback do PO 26/11</h4>
+      <p>Os dois focos foram aprovados; esta é a última rodada. Princípio: <b>o foco acompanha a ação</b> — ao agir num local ou com um inimigo, a atenção vai toda para ali.</p>
+      <ul>
+        <li><b>Faixa superior removida.</b> Tudo que ela mostrava já estava no tapete. Agora o tapete é a fonte única e legível: rótulos numéricos projetados ao lado da carta do investigador (<code>HP 7/9</code>, <code>SAN 4/5</code>), das pilhas de recursos e pistas, dos pips de ação, do deck/descarte, e sobre cada asset (<code>.45 · 4 ammo</code>, Guard Dog 3/3...). Os rótulos aparecem no foco Minha área e pulsam quando o valor muda.</li>
+        <li><b>Ação no elemento, sem lista de reserva.</b> O painel de escolhas e os atalhos 1–9 saíram. Passar o mouse num objeto mostra um tooltip ao lado com as ações dali (nome, custo, teste). Clicar executa direto quando há uma ação só e sem teste (mover para local adjacente, comprar carta, ganhar recurso, jogar Emergency Cache/Evidence!); senão abre o modal. No toque: 1º toque = tooltip, 2º = executa/abre. <b>End turn</b> mora na carta do investigador (hover lista End turn + habilidades do Mark; clique abre um menu pequeno). Teclado: cada objeto acionável tem um alvo HTML projetado e focável — <code>Tab</code> percorre, <code>Enter</code> age (Tab não troca mais o foco; <code>Espaço</code>, <code>Shift</code> segurado, o toggle e o swipe continuam). Os badges do toggle seguem contando ações legais por zona.</li>
+        <li><b>Modal de ação grande</b> (substitui o painel de teste e a troca automática para Minha área): ~85% da tela no desktop, tela cheia no celular, mesa escurecida, câmera vai até o alvo enquanto abre. Três colunas: carta grande com estado (local: véu, pistas, quem está ali, conexões; inimigo: Fight/Health/Evade, dano, Aloof, engajado); lista de ações com custo e teste; e, ao escolher uma ação de teste, equação, cartas da mão comprometíveis (clicáveis), assets usáveis (Physical Training repetível, Sophie +2, munição da .45), medidor de chance (80% → 87% com Vicious Blow → 93%), fichas que passam/falham e <i>Draw chaos token</i> com a revelação dentro do modal. <i>Continue</i> fecha; a câmera fica no alvo mostrando a consequência e depois volta ao foco anterior. Local atual: Investigate, Parley (mock), ação rápida (mock). Inimigo: Engage (legal porque é Aloof), Fight com Machete, Fight com .45 (gasta 1 munição), Evade.</li>
+        <li><b>Feedback visual:</b> comprar carta = carta 3D sai do deck, vira no ar e voa para a mão, que destaca a carta nova, com "+1 card" e o deck diminuindo. Ataque = peão avança e recua, flash de impacto, carta do inimigo treme, "−N ♥" e cubos de dano caindo com bounce; erro = "Miss" + tremor. Engage = inimigo desliza até o peão; Evade = inimigo gira exausto. Investigar com sucesso = pista voa do local com a câmera no local.</li>
+      </ul>
+      <h4>Mapeamento v2 para Unity 6</h4>
+      <ul>
+        <li><b>Modal:</b> documento <b>UI Toolkit</b> (UXML/USS) em três colunas, com <code>ScrollView</code> no celular; a camada de tooltips e os rótulos do tapete são <code>VisualElement</code>s posicionados por <code>RuntimePanelUtils.CameraTransformWorldToPanel</code> (ou TextMeshPro em world space).</li>
+        <li><b>Câmera:</b> uma terceira <code>CinemachineCamera</code> de <b>alvo dinâmico</b> (<code>Tracking Target</code> = local/inimigo escolhido), com prioridade alta enquanto o modal está aberto e durante a consequência; ao soltar, o <code>CinemachineBrain</code> volta para Mesa/MinhaÁrea.</li>
+        <li><b>Animações:</b> <b>DOTween</b> para a compra (<code>DOJump</code> + <code>DORotate</code> até a mão), o ataque (<code>DOPunchPosition</code> no peão, <code>DOShakePosition</code> na carta, sequência com os cubos) e Engage/Evade.</li>
+        <li><b>Input:</b> <code>IPointerEnterHandler</code>/<code>IPointerClickHandler</code> nos objetos (via <code>PhysicsRaycaster</code>), navegação por <code>Selectable</code>s projetados para teclado/gamepad.</li>
+      </ul>
+      <h4>O que D demonstra</h4>
+      <ul>
+        <li><b>Uma mesa, dois focos.</b> Cenário (mapa, ato/agenda, encontros, saco do caos) e a área do Mark (playmat grande) estão na mesma mesa 3D. Trocar de foco é só um movimento de câmera de ~350 ms (ease-out; instantâneo com movimento reduzido), como olhar para baixo no TTS — sem modal, sem troca de tela.</li>
+        <li><b>Mesa:</b> mapa grande; a área do jogador vira uma faixa fina no rodapé. <b>Minha área:</b> carta do investigador, 6 slots de assets e a mão grandes; o mapa vira uma faixa fina no topo.</li>
+        <li><b>Troca rápida, de vários jeitos:</b> toggle "Mesa | Minha área" sempre visível; <code>Espaço</code>; segurar <code>Shift</code> (ou pressionar e segurar o toggle / long-press no toque) = <i>espiar</i> o outro foco e voltar ao soltar; swipe vertical no toque (cima = Minha área, baixo = Mesa); roda do mouse além do limite de zoom empurra para o outro foco; clicar na faixa fina também troca.</li>
+        <li><b>O tapete é a fonte da verdade:</b> vida, sanidade, recursos, pistas, ações, deck e usos de cada asset têm rótulos numéricos sobre o tapete em Minha área.</li>
+        <li><b>O foco segue a ação:</b> cada ação legal mora no seu objeto; o toggle mostra contagens por foco. Ao agir num local ou inimigo, o modal grande abre com a câmera no alvo; depois do resultado a câmera mostra a consequência no alvo e volta.</li>
+      </ul>
+      <h4>Como experimentar</h4>
+      <ul>
+        <li>Passe o mouse no Theatre (onde o peão está) e na Balcony: o tooltip lista as ações. Clique na Balcony → o peão anda direto (uma ação, sem teste).</li>
+        <li>Clique no inimigo → modal com Engage, Fight with Machete, Fight with .45 e Evade. Escolha a .45: a munição cai de 4 para 3 e o teste mostra 6 vs 4 (80%).</li>
+        <li>Comprometa Vicious Blow (87%), opcionalmente Physical Training / Sophie (93%) → <i>Draw chaos token</i> → revelação no modal → <i>Continue</i>: peão ataca, inimigo é derrotado, Evidence! fica legal na mão (badge em Minha área).</li>
+        <li>Clique no deck (Minha área) para ver a compra animada. Reset volta tudo; no Theatre o modal do local oferece Investigate, Parley e a ação rápida (mock).</li>
+      </ul>
+      <h4>Por que responde ao feedback do PO</h4>
+      <p>O mapa pode crescer para ~15 locais sem roubar espaço da área do jogador, porque cada uma ganha a tela inteira quando é o foco. O que se consulta "de relance" (vida, munição, ações) mora no tapete, com rótulos numéricos. O que exige decisão espacial (mover, atacar, investigar) fica na Mesa; o que exige gerenciar recursos (mão, assets, teste) fica em Minha área — e, na v2, a ação acontece num modal sobre o alvo, com a câmera nele.</p>
+      <h4>Riscos</h4>
+      <ul>
+        <li><b>Desorientação</b> se a troca for lenta ou frequente demais: manter ≤ 0,35 s, ease-out, sem rotação; nunca trocar sozinha fora de momentos previsíveis (início/fim de teste).</li>
+        <li><b>"Onde estou?"</b>: o toggle preenchido, a etiqueta da faixa fina ("▼ Minha área" / "▲ Mesa") e a listra de "PEEK" precisam ser inequívocos. Testar sem as etiquetas para medir.</li>
+        <li><b>Teclado:</b> <code>Espaço</code> troca o foco só quando nenhum controle tem foco; <code>Tab</code> percorre os objetos acionáveis (alvos projetados). Em gamepad: LB/RB para foco, D-pad entre objetos.</li>
+        <li><b>Modal grande</b> esconde a mesa: a consequência só é vista depois do <i>Continue</i>; medir se o jogador sente falta de ver o alvo durante o teste.</li>
+        <li>Celular em retrato: a mesa 3D fica pequena; o playmat precisaria de um layout próprio (2×3 já ajuda).</li>
+      </ul>
+      <h4>Mapeamento para Unity 6</h4>
+      <ul>
+        <li><b>Câmeras:</b> duas <code>CinemachineCamera</code> (Mesa, MinhaÁrea) com prioridade; <code>CinemachineBrain</code> blend EaseOut 0,3 s; espiar = subir a prioridade enquanto a ação está pressionada. Câmera do saco opcional.</li>
+        <li><b>Input System:</b> ações <code>ToggleFocus</code> (Tab, Espaço, LB/RB), <code>HoldPeek</code> (Shift, interação Hold), <code>Swipe</code> (gesto vertical via EnhancedTouch), <code>Zoom</code> com "overscroll" para trocar.</li>
+        <li><b>UI Toolkit:</b> toggle com badges, tooltips por objeto e o modal de ação (probabilidade calculada só para UI).</li>
+        <li><b>Cartas no tapete:</b> prefab com <b>TextMeshPro</b> (SDF) para nome/usos legíveis no zoom de Minha área; texturas via <b>Addressables</b>.</li>
+        <li><b>Escolhas:</b> o servidor manda <code>ChooseOne</code>; o cliente mapeia cada alvo (CardId/LocationId/EnemyId) para uma zona (<code>Scenario</code> ou <code>PlayerArea</code>) e conta por zona.</li>
+      </ul>
+      <h4>Metas mensuráveis de playtest</h4>
+      <ul>
+        <li>Tempo para responder "quanta munição tem a .45?" ≤ 2 s (olhando o tapete em Minha área).</li>
+        <li>Trocas de foco por turno: mediana ≤ 4; trocas "desfeitas" em &lt; 1 s (sinal de erro) &lt; 10%.</li>
+        <li>% de testes em que o jogador comprometeu cartas sem precisar procurar a mão (o modal mostrou as cartas comprometíveis) ≥ 90%.</li>
+        <li>Erros de "onde estou?" (clicar em algo do outro foco por engano) &lt; 1 por sessão de 20 min; SUS/questionário de orientação ≥ 4/5.</li>
+      </ul>
+      <h4>Limitações deste mock</h4>
+      <ul>
+        <li>Dados falsos, textos parafraseados, arte procedural; sequência de fichas determinística (0, −2, auto-fail, …), reiniciada no Reset.</li>
+        <li>Parley e a ação rápida de local são mock (só registram no log); Mark começa com 3 ações para a demo caber num turno.</li>
+        <li>Lola é só uma gaveta (sem terceiro enquadramento); mitos, turno dela e efeitos "Forced" não são simulados.</li>
+      </ul>
+    </div>
+  </aside>
+  <div id="toast" role="status"></div>
+</div>
+<div id="tip" role="tooltip" hidden></div>
+<div id="modal" hidden>
+  <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="mhead"><h2 id="mTitle"></h2><span class="lbl" id="mSub"></span><button class="xbtn" id="mClose" aria-label="Close">✕</button></div>
+    <div class="mcols">
+      <section id="mCard" aria-label="Target card"></section>
+      <section id="mList" aria-label="Actions"></section>
+      <section id="mTest" aria-live="polite" aria-label="Skill test"></section>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+(() => {
+'use strict';
+if (!window.THREE || !window.gsap) {
+  document.getElementById('scene').innerHTML = '<div id="err">Could not load Three.js / GSAP from cdnjs. This prototype needs them.</div>';
+  return;
+}
+/* Boot: wait for web fonts so every canvas texture uses them (fallback after 2.5s) */
+Promise.race([
+  Promise.all([document.fonts.load('700 20px Cinzel'),document.fonts.load('16px "Crimson Pro"'),document.fonts.load('italic 16px "Crimson Pro"')]).catch(()=>{}),
+  new Promise(r=>setTimeout(r,2500))
+]).then(main);
+function main(){
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const D = s => RM ? 0.001 : s;
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+
+/* =========================================================
+   FAKE CARD DATA (paraphrased, procedural art only)
+   ========================================================= */
+const CLS = {guardian:'#2f6fc9', seeker:'#d6a21e', neutral:'#8b867a', mythos:'#5d4a7a', enemy:'#7a1f22', location:'#b59a63', act:'#3b5068', agenda:'#6b2b2b'};
+const SK = {W:['Willpower','#7a68d6'], I:['Intellect','#d6a21e'], C:['Combat','#c8443a'], A:['Agility','#3f9e62']};
+const CARDS = {
+  viciousBlow:{name:'Vicious Blow',type:'Skill',cls:'guardian',icons:['C'],traits:'Practiced.',text:'If this skill test is successful during an attack, that attack deals +1 damage.',glyph:'⚔'},
+  guardDog:{name:'Guard Dog',type:'Asset',cls:'guardian',cost:3,icons:['C'],traits:'Ally. Creature.',text:'When an enemy attack deals damage to Guard Dog, you may deal 1 damage to the attacking enemy.',glyph:'♞',hs:[3,1],slot:'Ally'},
+  emergencyCache:{name:'Emergency Cache',type:'Event',cls:'neutral',cost:0,icons:[],traits:'Supply.',text:'Gain 3 resources.',glyph:'¤'},
+  evidence:{name:'Evidence!',type:'Event',cls:'guardian',cost:1,icons:['I','I'],traits:'Insight.',text:'Fast. Play after you defeat an enemy: Discover 1 clue at your location.',glyph:'✎'},
+  dodge:{name:'Dodge',type:'Event',cls:'guardian',cost:1,icons:['W','A'],traits:'Tactic.',text:'Fast. Play when an enemy attacks an investigator at your location: Cancel that attack.',glyph:'↯'},
+  guts:{name:'Guts',type:'Skill',cls:'neutral',icons:['W','W'],traits:'Innate.',text:'If this skill test is successful, draw 1 card.',glyph:'♥'},
+  sophie:{name:'Sophie',sub:'In Loving Memory',type:'Asset',cls:'guardian',icons:[],traits:'Item. Unique.',text:'Fast: Deal 1 direct damage to Mark Harrigan: You get +2 skill value for this test. Forced – If Mark has 5+ damage, flip Sophie.',glyph:'❦',slot:'Accessory'},
+  machete:{name:'Machete',type:'Asset',cls:'guardian',cost:3,icons:['C'],traits:'Item. Weapon. Melee.',text:'Fight. You get +1 combat for this attack. If the attacked enemy is the only enemy engaged with you, it deals +1 damage.',glyph:'†',slot:'Hand'},
+  fortyFive:{name:'.45 Automatic',type:'Asset',cls:'guardian',cost:4,icons:['A'],traits:'Item. Weapon. Firearm.',text:'Uses (4 ammo). Spend 1 ammo: Fight. You get +1 combat for this attack. This attack deals +1 damage.',glyph:'◉',slot:'Hand'},
+  physTraining:{name:'Physical Training',type:'Asset',cls:'guardian',cost:2,icons:['W','C'],traits:'Talent.',text:'Spend 1 resource: +1 willpower for this skill test. Spend 1 resource: +1 combat for this skill test.',glyph:'♜'},
+  leatherCoat:{name:'Leather Coat',type:'Asset',cls:'neutral',cost:0,icons:['C'],traits:'Item. Armor.',text:'Health 2. A heavy coat that has already turned more than one blade.',glyph:'▣',slot:'Body'},
+  deduction:{name:'Deduction',type:'Skill',cls:'seeker',icons:['I'],traits:'Practiced.',text:'If this test is successful while investigating, discover 1 additional clue.',glyph:'∴'},
+  magGlass:{name:'Magnifying Glass',type:'Asset',cls:'seeker',cost:1,icons:['I'],traits:'Item. Tool.',text:'Fast. You get +1 intellect while investigating.',glyph:'◎',slot:'Hand'},
+  flashlight:{name:'Flashlight',type:'Asset',cls:'neutral',cost:2,icons:['I'],traits:'Item. Tool.',text:'Uses (3 supplies). Investigate. Your location gets −2 shroud for this investigation.',glyph:'☀',slot:'Hand'},
+  hidden:{name:'Hidden',type:'Hidden',cls:'mythos',text:'A Hidden treachery. Its owner knows what it is; the table does not.',glyph:'◈'},
+  mark:{name:'Mark Harrigan',sub:'The Veteran',type:'Investigator',cls:'guardian',stats:[3,2,5,3],hs:[9,5],text:'After Sophie is dealt damage, draw 1 card. Elder Sign: +2 (mock value).',glyph:'✠'},
+  lola:{name:'Lola Hayes',sub:'The Actress',type:'Investigator',cls:'neutral',stats:[3,3,3,3],hs:[6,6],text:'Current role: Seeker. Fast: switch your role. You can only play cards of your role or neutral.',glyph:'☽'},
+  theatre:{name:'Theatre',type:'Location',cls:'location',shroud:2,clues:1,text:'The house lights are dim. Every seat faces a stage you would rather not watch.',glyph:'♛',sym:'●'},
+  lobby:{name:'Lobby',type:'Location',cls:'location',shroud:3,clues:2,text:'Velvet ropes, a ticket booth, and posters for a play no one remembers buying.',glyph:'⌂',sym:'■'},
+  balcony:{name:'Balcony',type:'Location',cls:'location',shroud:2,clues:1,text:'From up here the audience looks like a single breathing thing.',glyph:'☾',sym:'▲'},
+  backstage:{name:'Backstage',type:'Location',cls:'location',shroud:3,clues:2,text:'Ropes and pulleys creak. Someone has been sewing pale masks.',glyph:'✧',sym:'◆'},
+  lobbyDoor:{name:'Lobby Doorway',type:'LocBack',cls:'location',glyph:'✚'},
+  backDoor:{name:'Backstage Doorway',type:'LocBack',cls:'location',glyph:'★'},
+  pallid:{name:'The Man in the Pallid Mask',type:'Enemy',cls:'enemy',fight:4,health:3,evade:2,hs:[1,1],traits:'Humanoid. Elite.',text:'Aloof. He watches; he does not engage unless provoked.',glyph:'◐'},
+  rotting:{name:'Rotting Remains',type:'Treachery',cls:'mythos',traits:'Terror.',text:'Revelation – Test Willpower (3). For each point you fail by, take 1 horror.',glyph:'☠'},
+  act:{name:'Awakening',sub:'Act 1a',type:'Act',cls:'act',text:'The curtain rises. Find out who staged this play.',goal:'Objective – Spend 2 clues per investigator to advance.',big:'2 ⦿ / inv',glyph:'☥'},
+  agenda:{name:'The Third Act',sub:'Agenda 1a',type:'Agenda',cls:'agenda',text:'The actors forget their lines; the audience does not.',goal:'When doom reaches the threshold, advance.',big:'Doom 2',glyph:'⧗'},
+  ref:{name:'Curtain Call',type:'Ref',cls:'location'},
+};
+const BACKS = {player:{name:'Investigator',type:'Back',cls:'guardian'}, enc:{name:'Encounter',type:'Back',cls:'mythos'}, disc:{name:'Discard',type:'Back',cls:'neutral',glyph:'♲'}};
+
+/* Chaos bag (Standard). */
+const BAG = ['+1','0','0','-1','-1','-1','-2','-2','-3','-4','skull','skull','skull','autofail','elder'];
+const TOK = {skull:{sym:'☠',name:'Skull'}, autofail:{sym:'✖',name:'Auto-fail (tentacle)'}, elder:{sym:'✷',name:'Elder Sign'}};
+const SEQ = ['0','-2','autofail','+1','skull','-3','elder','-1','-4','0']; // scripted, deterministic draw order
+const tokSym = t => TOK[t] ? TOK[t].sym : t.replace('-','−');
+const tokMod = t => t==='autofail' ? null : t==='elder' ? 2 : t==='skull' ? (S.mark.hor>=3 ? -3 : -1) : parseInt(t,10);
+const tokDesc = t => t==='skull' ? `Skull: −1 (−3 instead if you have 3+ horror). Mark has ${S.mark.hor} horror → ${tokMod(t)}.`
+  : t==='elder' ? 'Elder Sign (Mark Harrigan): +2.' : t==='autofail' ? 'Auto-fail: you automatically fail the test.' : `Modifier ${tokSym(t)}.`;
+
+/* =========================================================
+   CANVAS CARD RENDERER
+   ========================================================= */
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function tx(c,s,x,y,font,color,align='center'){c.font=font;c.fillStyle=color;c.textAlign=align;c.textBaseline='middle';c.fillText(String(s),x,y);}
+function fitTx(c,s,x,y,maxW,size,fam,weight,color){let f=size;do{c.font=`${weight} ${f}px ${fam}`;f--;}while(c.measureText(s).width>maxW&&f>9);tx(c,s,x,y,c.font,color);}
+function wrap(c,s,x,y,maxW,lh,font,color,align='left'){
+  if(!s) return y; c.font=font;c.fillStyle=color;c.textAlign=align;c.textBaseline='middle';
+  let line=''; for(const w of s.split(' ')){const t=line?line+' '+w:w; if(c.measureText(t).width>maxW&&line){c.fillText(line,x,y);y+=lh;line=w;} else line=t;}
+  if(line){c.fillText(line,x,y);y+=lh;} return y;
+}
+function circ(c,x,y,r,fill,stroke,lw=3){c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.fillStyle=fill;c.fill();if(stroke){c.lineWidth=lw;c.strokeStyle=stroke;c.stroke();}}
+function shade(hex,a){const n=parseInt(hex.slice(1),16);const f=v=>Math.round(a<0?v*(1+a):v+(255-v)*a);return `rgb(${f(n>>16)},${f(n>>8&255)},${f(n&255)})`;}
+function hash(s){let h=2166136261;for(const ch of s){h^=ch.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
+const SYMF = 'Georgia,"Segoe UI Symbol","Noto Sans Symbols 2","Apple Symbols",serif';
+function art(c,def,col,x,y,w,h){
+  c.save(); rr(c,x,y,w,h,8); c.clip();
+  const g=c.createRadialGradient(x+w/2,y+h*.45,4,x+w/2,y+h/2,w*.75); g.addColorStop(0,shade(col,.25)); g.addColorStop(1,'#060606');
+  c.fillStyle=g; c.fillRect(x,y,w,h);
+  c.strokeStyle='rgba(255,255,255,.07)'; c.lineWidth=1.5;
+  for(let i=1;i<10;i++){c.beginPath();c.arc(x+w/2,y+h/2,i*15,0,Math.PI*2);c.stroke();}
+  let r=hash(def.name);
+  for(let i=0;i<70;i++){r=(Math.imul(r,1103515245)+12345)>>>0;const px=x+(r%997)/997*w;r=(Math.imul(r,1103515245)+12345)>>>0;const py=y+(r%991)/991*h;c.fillStyle=`rgba(255,236,200,${.04+(r%7)/50})`;c.fillRect(px,py,2,2);}
+  c.shadowColor='rgba(0,0,0,.9)'; c.shadowBlur=14;
+  tx(c,def.glyph||'?',x+w/2,y+h/2+4,`${Math.round(Math.min(h*.6,92))}px ${SYMF}`,'rgba(250,240,220,.92)');
+  c.restore(); c.lineWidth=2; c.strokeStyle='rgba(0,0,0,.6)'; rr(c,x,y,w,h,8); c.stroke();
+}
+const P='#f1e7cd', INK='#1e1810';
+function drawCard(def,s=1.6){
+  const land=['Investigator','Act','Agenda'].includes(def.type);
+  const W=land?420:300, H=land?300:420;
+  const cv=document.createElement('canvas'); cv.width=W*s; cv.height=H*s;
+  const c=cv.getContext('2d'); c.scale(s,s);
+  const col=CLS[def.cls]||'#777', T=def.type;
+  rr(c,0,0,W,H,16); c.fillStyle='#0d0c0b'; c.fill();
+  const g=c.createLinearGradient(0,0,W,H); g.addColorStop(0,shade(col,.12)); g.addColorStop(1,shade(col,-.58));
+  rr(c,5,5,W-10,H-10,12); c.fillStyle=g; c.fill();
+  if(T==='Back'||T==='Hidden'||T==='LocBack'){
+    const cx=W/2, cy=H/2;
+    c.strokeStyle='rgba(241,231,205,.22)'; c.lineWidth=2;
+    for(let i=0;i<14;i++){c.beginPath();c.arc(cx,cy,12+i*13,0,Math.PI*2);c.stroke();}
+    for(let a=0;a<12;a++){c.beginPath();c.moveTo(cx,cy);c.lineTo(cx+Math.cos(a*Math.PI/6)*200,cy+Math.sin(a*Math.PI/6)*200);c.stroke();}
+    rr(c,16,16,W-32,H-32,10); c.strokeStyle='rgba(241,231,205,.45)'; c.lineWidth=3; c.stroke();
+    circ(c,cx,cy-20,56,'rgba(0,0,0,.65)',P,3);
+    tx(c,def.glyph||'✦',cx,cy-18,`64px ${SYMF}`,P);
+    if(T==='Back'){ fitTx(c,def.name.toUpperCase(),cx,cy+76,W-60,24,'Cinzel',700,P); if(def.sub) tx(c,def.sub,cx,cy+104,'italic 18px "Crimson Pro"',P); }
+    else if(T==='Hidden'){ tx(c,'HIDDEN',cx,cy+74,'700 30px Cinzel',P); wrap(c,def.text,cx,cy+110,W-70,20,'italic 16px "Crimson Pro"','rgba(241,231,205,.8)','center'); }
+    else { fitTx(c,def.name,cx,cy+74,W-50,24,'Cinzel',700,P); tx(c,'Unrevealed location',cx,cy+104,'italic 17px "Crimson Pro"','rgba(241,231,205,.8)'); }
+    return cv;
+  }
+  if(T==='Ref'){
+    rr(c,14,12,W-28,H-24,10); c.fillStyle=P; c.fill();
+    tx(c,'Curtain Call',W/2,40,'700 24px Cinzel',INK);
+    tx(c,'Scenario reference · Standard',W/2,66,'italic 16px "Crimson Pro"','#5a4630');
+    const rows=[['☠','−1. −3 instead if you have 3+ horror.'],['♆','−1. If you fail, take 1 horror.'],['⧉','−2.'],['✷','Per investigator (Mark: +2).'],['✖','Automatic failure.']];
+    let y=104; for(const [sym,t] of rows){ circ(c,40,y+8,17,'#1b1a19','#8a6d2f',2); tx(c,sym,40,y+9,`18px ${SYMF}`,P); y=wrap(c,t,66,y+8,W-96,20,'16px "Crimson Pro"',INK)+20; }
+    tx(c,'Cultist / Tablet not in this bag',W/2,H-34,'italic 14px "Crimson Pro"','#6b5a40');
+    return cv;
+  }
+  if(land){
+    art(c,def,col,16,16,140,H-32);
+    rr(c,168,14,W-182,48,8); c.fillStyle=P; c.fill();
+    fitTx(c,def.name,(168+W-14)/2,def.sub?31:38,W-196,22,'Cinzel',700,INK);
+    if(def.sub) tx(c,def.sub,(168+W-14)/2,51,'italic 14px "Crimson Pro"','#5a4630');
+    if(T==='Investigator'){
+      'WICA'.split('').forEach((k,i)=>{const x=196+i*56; circ(c,x,92,20,SK[k][1],'#0d0c0b',3); tx(c,def.stats[i],x,93,'700 20px Cinzel','#fff'); tx(c,SK[k][0].slice(0,3).toUpperCase(),x,122,'700 10px system-ui,sans-serif',P);});
+      rr(c,168,136,W-182,104,8); c.fillStyle=P; c.fill();
+      wrap(c,def.text,180,156,W-206,19,'16px "Crimson Pro"',INK);
+      circ(c,192,H-28,15,'#8b1f1f',P,2); tx(c,def.hs[0],192,H-27,'700 14px system-ui,sans-serif','#fff');
+      circ(c,232,H-28,15,'#2a4f8f',P,2); tx(c,def.hs[1],232,H-27,'700 14px system-ui,sans-serif','#fff');
+      tx(c,(def.cls==='guardian'?'GUARDIAN':'NEUTRAL'),W-60,H-27,'700 12px Cinzel',P);
+    } else {
+      c.fillStyle='rgba(0,0,0,.5)'; c.fillRect(168,68,W-182,22); tx(c,(T==='Act'?'ACT 1a':'AGENDA 1a')+' · Curtain Call',(168+W-14)/2,79,'600 12px Cinzel',P);
+      rr(c,168,96,W-182,136,8); c.fillStyle=P; c.fill();
+      let y=wrap(c,def.text,180,116,W-206,19,'italic 16px "Crimson Pro"','#4a3a24');
+      wrap(c,def.goal,180,y+6,W-206,19,'600 16px "Crimson Pro"',INK);
+      tx(c,def.big,(168+W-14)/2,H-30,'700 24px Cinzel',P);
+    }
+    return cv;
+  }
+  // ---- portrait faces: player cards, locations, enemies, treacheries
+  const isLoc=T==='Location', isEnemy=T==='Enemy';
+  rr(c,14,12,W-28,40,8); c.fillStyle=P; c.fill();
+  const tl=def.cost!=null?58:20, cx=(tl+W-20)/2;
+  if(def.sub){ fitTx(c,def.name,cx,25,W-26-tl,19,'Cinzel',700,INK); tx(c,def.sub,cx,42,'italic 13px "Crimson Pro"','#5a4630'); }
+  else fitTx(c,def.name,cx,32,W-26-tl,21,'Cinzel',700,INK);
+  if(def.cost!=null){ circ(c,34,32,22,'#15120f',shade(col,.3),4); tx(c,def.cost,34,33,'700 24px Cinzel','#fff'); }
+  art(c,def,col,18,58,W-36,isEnemy?130:148);
+  (def.icons||[]).forEach((k,i)=>{circ(c,24,94+i*36,16,SK[k][1],'#0d0c0b',3); tx(c,k,24,95,'800 15px system-ui,sans-serif','#fff');});
+  let y=212, strip;
+  if(isLoc){
+    circ(c,48,192,24,'#15120f',P,3); tx(c,def.shroud,48,193,'700 22px Cinzel','#fff');
+    circ(c,W-48,192,24,'#1d3a2b',P,3); tx(c,def.clues,W-48,193,'700 22px Cinzel','#9ff0c4');
+    strip=`SHROUD ${def.shroud}  ·  CLUES ${def.clues} PER INV.`;
+  } else if(isEnemy){
+    [['FIGHT',def.fight],['HEALTH',def.health],['EVADE',def.evade]].forEach(([l,v],i)=>{const bw=(W-36)/3, bx=18+i*bw; c.fillStyle=i===1?'#5e1414':'#201514'; c.fillRect(bx+2,192,bw-4,40); tx(c,v,bx+bw/2,206,'700 20px Cinzel','#fff'); tx(c,l,bx+bw/2,225,'700 10px system-ui,sans-serif',P);});
+    y=236; strip='ENEMY';
+  } else strip=(T+(def.slot?' · '+def.slot:'')).toUpperCase();
+  c.fillStyle='rgba(0,0,0,.55)'; c.fillRect(18,y,W-36,22); tx(c,strip,W/2,y+11,'600 11px Cinzel',P);
+  y+=26;
+  rr(c,18,y,W-36,H-y-34,8); c.fillStyle=P; c.fill();
+  let ty=y+18;
+  if(def.traits) ty=wrap(c,def.traits,W/2,ty,W-56,18,'italic 600 15px "Crimson Pro"','#5a4630','center')+2;
+  wrap(c,def.text,28,ty,W-56,19,(isLoc?'italic ':'')+'16px "Crimson Pro"',INK);
+  const foot = isLoc ? `Curtain Call · ${def.sym}` : isEnemy ? 'DMG 1 · HOR 1' : T==='Treachery' ? 'TREACHERY' : (def.cls==='guardian'?'GUARDIAN':def.cls==='seeker'?'SEEKER':'NEUTRAL');
+  tx(c,foot,W/2,H-17,'600 11px Cinzel','rgba(241,231,205,.85)');
+  if(def.hs){ circ(c,30,H-18,11,'#8b1f1f',P,1.5); tx(c,def.hs[0],30,H-17,'700 12px system-ui,sans-serif','#fff'); circ(c,W-30,H-18,11,'#2a4f8f',P,1.5); tx(c,def.hs[1],W-30,H-17,'700 12px system-ui,sans-serif','#fff'); }
+  return cv;
+}
+const urlCache = {};
+const cardURL = (id, def) => urlCache[id] || (urlCache[id] = drawCard(def || CARDS[id], 1.4).toDataURL());
+function tokenCanvas(t){
+  const cv=document.createElement('canvas'); cv.width=cv.height=256; const c=cv.getContext('2d');
+  const g=c.createRadialGradient(128,110,10,128,128,128); g.addColorStop(0,'#3a3631'); g.addColorStop(1,'#0f0e0d');
+  circ(c,128,128,124,g,'#c9a24f',10);
+  circ(c,128,128,100,'rgba(0,0,0,0)','rgba(201,162,79,.35)',3);
+  const col = t==='autofail'?'#ff6b5e': t==='elder'?'#7fe3c4': t==='skull'?'#e8d6c0':'#f4ead3';
+  tx(c,tokSym(t),128,134,(TOK[t]?`120px ${SYMF}`:'700 110px Cinzel'),col);
+  return cv;
+}
+
+
+/* =========================================================
+   GAME STATE (mock) — the server would own all of this
+   ========================================================= */
+CARDS.lobbyDoor1 = CARDS.lobbyDoor2 = CARDS.lobbyDoor; CARDS.backDoor1 = CARDS.backDoor2 = CARDS.backDoor;
+const INIT = {
+  mark:{loc:'theatre',actions:3,res:4,dmg:2,hor:1,clues:0,deck:22,ammo:4,dogDmg:0,coatDmg:0,hand:['viciousBlow','emergencyCache','evidence','dodge'],disc:'guts',discN:3},
+  lola:{loc:'lobby',res:6,dmg:0,hor:2,clues:0,hand:['deduction','magGlass','flashlight','hidden']},
+  locs:{theatre:{clues:1},lobby:{clues:2},balcony:{clues:1},backstage:{clues:2}},
+  enemy:{loc:'balcony',dmg:1,exhausted:false,defeated:false,engaged:false},
+  doom:1, mode:'choose', test:null, drawn:0, justDefeated:false, fastUsed:false
+};
+const DRAWS = ['guts','dodge'];
+let S = clone(INIT);
+let seqIdx = 0; // restarts on Reset so the scripted demo always opens with a "0" (success)
+
+/* Scenario zone (z < -1.6) — map is laid out bigger than A: 8 locations + enemy */
+const LOC = {theatre:{x:0,z:-4.4}, lobby:{x:-3.2,z:-4.4}, backstage:{x:3.2,z:-4.4}, balcony:{x:-1.6,z:-7.4},
+  lobbyDoor1:{x:-6.4,z:-5.9}, lobbyDoor2:{x:-6.4,z:-3.1}, backDoor1:{x:6.4,z:-5.9}, backDoor2:{x:6.4,z:-3.1}};
+const REVEALED = ['theatre','lobby','balcony','backstage'];
+const CONN = [['theatre','lobby'],['theatre','balcony'],['theatre','backstage'],['lobby','lobbyDoor1'],['lobby','lobbyDoor2'],['backstage','backDoor1'],['backstage','backDoor2'],['balcony','lobby']];
+const conns = id => CONN.flatMap(([a,b]) => a===id ? [b] : b===id ? [a] : []);
+const ENEMY_POS = {x:0.4, z:-7.4};
+const BAG_POS = new THREE.Vector3(8.9,0,-8.2);
+/* Player zone (z > -1.1): Mark's big playmat */
+const SLOTS = [['sophie',-2.4,.45,'ACCESSORY'],['machete',-0.4,.45,'HAND 1'],['fortyFive',1.6,.45,'HAND 2'],
+  ['guardDog',-2.4,3.05,'ALLY'],['physTraining',-0.4,3.05,'TALENT · NO SLOT'],['leatherCoat',1.6,3.05,'BODY']];
+/* Which focus a choice's target lives in (the client would map server ids -> zone) */
+const zoneOf = k => !k ? null : /^(hand|card|mark|res|deck|disc)\b/.test(k) ? 'mine' : 'mesa';
+const ZN = {mesa:'Mesa', mine:'Minha área'};
+
+/* =========================================================
+   THREE.JS SCENE
+   ========================================================= */
+const host = $('#scene');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+host.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0c0b); scene.fog = new THREE.Fog(0x0a0c0b, 34, 70);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
+scene.add(new THREE.HemisphereLight(0xfff2dd, 0x1a1410, 0.6));
+const sun = new THREE.DirectionalLight(0xffe7c2, 0.85); sun.position.set(5,20,8); sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-14,right:14,top:14,bottom:-14,near:1,far:45}); sun.shadow.bias=-0.0008; sun.shadow.camera.updateProjectionMatrix();
+scene.add(sun);
+const lamp = new THREE.PointLight(0xffb46b, 0.4, 30); lamp.position.set(0,7,-4); scene.add(lamp);
+const lamp2 = new THREE.PointLight(0xbfd4ff, 0.25, 20); lamp2.position.set(0,6,3); scene.add(lamp2);
+const ANISO = renderer.capabilities.getMaxAnisotropy();
+function texFrom(cv){ const t=new THREE.CanvasTexture(cv); t.encoding=THREE.sRGBEncoding; t.anisotropy=ANISO; return t; }
+
+/* Felt + wood */
+const FELT = {x0:-11, z0:-12.6, w:22, h:18.4};
+(function buildTable(){
+  const cv=document.createElement('canvas'); cv.width=2048; cv.height=1712; const c=cv.getContext('2d');
+  const g=c.createRadialGradient(1024,700,80,1024,800,1400); g.addColorStop(0,'#1f4a3c'); g.addColorStop(1,'#08150f');
+  c.fillStyle=g; c.fillRect(0,0,2048,1712);
+  for(let i=0;i<60000;i++){c.fillStyle=`rgba(${Math.random()<.5?'255,255,255':'0,0,0'},${Math.random()*.05})`;c.fillRect(Math.random()*2048,Math.random()*1712,2,2);}
+  const px = (x,z) => [(x-FELT.x0)/FELT.w*2048, (z-FELT.z0)/FELT.h*1712];
+  const label=(s,x,z)=>{const [a,b]=px(x,z); tx(c,s,a,b,'600 24px Cinzel','rgba(217,178,95,.5)');};
+  label('E N C O U N T E R',-5.6,-12.05); label('D I S C A R D',-3.6,-12.05); label('A C T',0.6,-11.75); label('A G E N D A',3.4,-11.75);
+  label('S C E N A R I O',6.0,-12.05); label('C H A O S   B A G',8.9,-9.4); label('C U R T A I N   C A L L  ·  T H E   M A P',0,-9.1);
+  c.strokeStyle='rgba(217,178,95,.18)'; c.lineWidth=3; c.setLineDash([14,10]);
+  const [ax,az]=px(-7.6,-8.8), [bx,bz]=px(7.6,-1.75); c.strokeRect(ax,az,bx-ax,bz-az);
+  const felt=new THREE.Mesh(new THREE.PlaneGeometry(FELT.w,FELT.h), new THREE.MeshStandardMaterial({map:texFrom(cv),roughness:1}));
+  felt.rotation.x=-Math.PI/2; felt.position.set(FELT.x0+FELT.w/2,0,FELT.z0+FELT.h/2); felt.receiveShadow=true; scene.add(felt);
+  const wc=document.createElement('canvas'); wc.width=512; wc.height=64; const w=wc.getContext('2d');
+  w.fillStyle='#4a2c18'; w.fillRect(0,0,512,64);
+  for(let i=0;i<40;i++){w.strokeStyle=`rgba(${i%2?'20,10,4':'120,72,40'},.35)`; w.beginPath(); const y=Math.random()*64; w.moveTo(0,y); w.bezierCurveTo(170,y+6,340,y-6,512,y+2); w.stroke();}
+  const wt=texFrom(wc); wt.wrapS=wt.wrapT=THREE.RepeatWrapping; wt.repeat.set(4,1);
+  const wood=new THREE.MeshStandardMaterial({map:wt,roughness:.55,metalness:.05});
+  const rim=(w2,d2,x,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w2,0.5,d2),wood); m.position.set(x,-0.05,z); m.receiveShadow=true; m.castShadow=true; scene.add(m);};
+  const cx=FELT.x0+FELT.w/2, cz=FELT.z0+FELT.h/2;
+  rim(FELT.w+1.6,0.8,cx,FELT.z0-0.4); rim(FELT.w+1.6,0.8,cx,FELT.z0+FELT.h+0.4); rim(0.8,FELT.h,FELT.x0-0.4,cz); rim(0.8,FELT.h,FELT.x0+FELT.w+0.4,cz);
+  const under=new THREE.Mesh(new THREE.BoxGeometry(FELT.w+1.6,0.6,FELT.h+1.6),wood); under.position.set(cx,-0.32,cz); scene.add(under);
+})();
+
+/* Connection lines on the felt */
+for(const [a,b] of CONN){
+  const A=LOC[a], B=LOC[b], dx=B.x-A.x, dz=B.z-A.z, len=Math.hypot(dx,dz);
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(0.09,len), new THREE.MeshBasicMaterial({color:0xd9b25f,transparent:true,opacity:.55,depthWrite:false}));
+  m.rotation.set(-Math.PI/2,0,Math.atan2(dx,dz));
+  m.position.set((A.x+B.x)/2,0.004,(A.z+B.z)/2); scene.add(m);
+}
+
+/* Glow halo texture shared by all legal targets */
+const glowTex = (() => { const cv=document.createElement('canvas'); cv.width=cv.height=256; const c=cv.getContext('2d');
+  c.shadowColor='#fff'; c.shadowBlur=36; c.fillStyle='#fff'; rr(c,44,44,168,168,18); c.fill(); c.fill(); return new THREE.CanvasTexture(cv); })();
+function makeHalo(w,h){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w*1.42,h*1.42), new THREE.MeshBasicMaterial({map:glowTex,color:0x4fe3c1,transparent:true,opacity:.6,depthWrite:false,blending:THREE.AdditiveBlending}));
+  m.rotation.x=-Math.PI/2; m.visible=false; m.renderOrder=1; return m;
+}
+
+/* Registries */
+const TGT = {}, byKey = {}, pickables = [], cards = [];
+const CT=0.03, CW=1.6, CH=2.24, BASEY=0.012+CT/2;
+const edgeMat = new THREE.MeshStandardMaterial({color:0xe4dcc6, roughness:.8});
+const backTex = texFrom(drawCard(BACKS.player,1)), encBackTex = texFrom(drawCard(BACKS.enc,1));
+
+function makeCard(key, def, x, z, o={}){
+  const land = ['Investigator','Act','Agenda'].includes(def.type), sc=o.scale||1;
+  const w=(land?CH:CW)*sc, h=(land?CW:CH)*sc;
+  const face=new THREE.MeshStandardMaterial({map:texFrom(drawCard(def,1.6)),roughness:.62,emissive:0x4fe3c1,emissiveIntensity:0});
+  const back=new THREE.MeshStandardMaterial({map:o.encBack?encBackTex:backTex,roughness:.7});
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,CT,h),[edgeMat,edgeMat,face,back,edgeMat,edgeMat]);
+  m.castShadow=true; m.receiveShadow=true;
+  m.userData={key, def, isCard:true, base:{x,y:BASEY,z,rotY:o.rotY||0}, lift:0, w, h};
+  const halo=makeHalo(w,h); halo.position.y=-CT/2-0.003; m.add(halo);
+  TGT[key]={halo, face}; byKey[key]=m; scene.add(m); cards.push(m); pickables.push(m);
+  return m;
+}
+function makePile(key, x, z, n, tex, def){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(CW,1,CH),[edgeMat,edgeMat,new THREE.MeshStandardMaterial({map:tex,roughness:.7}),edgeMat,edgeMat,edgeMat]);
+  m.castShadow=true; m.receiveShadow=true; m.userData={key, def}; m.position.set(x,0,z);
+  const halo=makeHalo(CW,CH); halo.position.set(x,0.006,z); scene.add(halo);
+  TGT[key]={halo}; byKey[key]=m; scene.add(m); pickables.push(m); setPileHeight(m,n); return m;
+}
+function setPileHeight(m,n){ const hgt=Math.max(0.04,n*0.012); m.scale.y=hgt; m.position.y=hgt/2+0.005; }
+function makeHit(key,x,z,w,h,halo=true){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,halo?0.6:0.002,h), new THREE.MeshBasicMaterial({visible:false}));
+  m.position.set(x,halo?0.3:0.001,z); m.userData={key}; scene.add(m); pickables.push(m);
+  if(halo){ const hm=makeHalo(w,h); hm.position.set(x,0.006,z); scene.add(hm); TGT[key]={halo:hm}; }
+  byKey[key]=m; return m;
+}
+
+/* Mark's playmat: x -7.6..7.4, z -1.1..4.9 (100 px per world unit) */
+const MAT = {x0:-7.6, z0:-1.1, w:15, h:6};
+const mpx = (x,z) => [(x-MAT.x0)*100, (z-MAT.z0)*100];
+const matMesh = (() => {
+  const cv=document.createElement('canvas'); cv.width=MAT.w*100; cv.height=MAT.h*100; const c=cv.getContext('2d'); const W=cv.width, H=cv.height, col=CLS.guardian;
+  const g=c.createLinearGradient(0,0,W,H); g.addColorStop(0,shade(col,-.55)); g.addColorStop(1,shade(col,-.82)); c.fillStyle=g; c.fillRect(0,0,W,H);
+  c.strokeStyle=shade(col,.1); c.lineWidth=6; rr(c,8,8,W-16,H-16,18); c.stroke();
+  tx(c,'MARK HARRIGAN · GUARDIAN · PLAY AREA',24,24,'700 18px Cinzel','rgba(241,231,205,.85)','left');
+  const lab=(s,x,z,sz=15)=>{const [a,b]=mpx(x,z); tx(c,s,a,b,`700 ${sz}px system-ui,sans-serif`,'rgba(241,231,205,.6)');};
+  c.setLineDash([10,8]); c.strokeStyle='rgba(241,231,205,.28)'; c.lineWidth=3;
+  for(const [,x,z,l] of SLOTS){ const [a,b]=mpx(x-0.86,z-1.18); rr(c,a,b,172,236,10); c.stroke(); lab(l,x,z<1?-0.92:1.76); }
+  for(const [x,l] of [[4.1,'DECK'],[6.0,'DISCARD']]){ const [a,b]=mpx(x-0.86,0.45-1.18); rr(c,a,b,172,236,10); c.stroke(); lab(l,x,-0.92); }
+  lab('ACTIONS',-6.6,3.55,13); lab('RESOURCES',-5.3,3.55,13); lab('CLUES',-4.2,3.55,13);
+  tx(c,'HAND ↓',...mpx(5.05,3.9),'700 30px Cinzel','rgba(241,231,205,.45)');
+  tx(c,'(shown at the bottom of the screen)',...mpx(5.05,4.35),'italic 20px "Crimson Pro"','rgba(241,231,205,.45)');
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(MAT.w,MAT.h),new THREE.MeshStandardMaterial({map:texFrom(cv),roughness:.95,emissive:0xd9b25f,emissiveIntensity:0}));
+  m.rotation.x=-Math.PI/2; m.position.set(MAT.x0+MAT.w/2,0.003,MAT.z0+MAT.h/2); m.receiveShadow=true; scene.add(m); return m;
+})();
+
+/* Cards on the table: scenario zone */
+for(const id of REVEALED) makeCard('loc:'+id, CARDS[id], LOC[id].x, LOC[id].z);
+for(const id of ['lobbyDoor1','lobbyDoor2','backDoor1','backDoor2']) makeCard('loc:'+id, CARDS[id], LOC[id].x, LOC[id].z);
+makeCard('enemy', CARDS.pallid, ENEMY_POS.x, ENEMY_POS.z, {encBack:true});
+makeCard('act', CARDS.act, 0.6, -10.6, {encBack:true});
+makeCard('agenda', CARDS.agenda, 3.4, -10.6, {encBack:true});
+makeCard('ref', CARDS.ref, 6.0, -10.6, {encBack:true});
+makeCard('encDisc', CARDS.rotting, -3.6, -10.6, {encBack:true});
+makePile('enc', -5.6, -10.6, 24, encBackTex, {name:'Encounter deck'});
+/* player zone */
+makeCard('mark:inv', CARDS.mark, -5.5, 0.45, {scale:1.15});
+for(const [id,x,z] of SLOTS) makeCard('card:'+id, CARDS[id], x, z);
+makePile('deck', 4.1, 0.45, 22, backTex);
+makeCard('disc', CARDS.guts, 6.0, 0.45);
+makeHit('res', -5.3, 3.0, 0.9, 0.9);
+/* zone hit planes: clicking the slim strip of the other focus switches to it */
+makeHit('zone:mine', MAT.x0+MAT.w/2, MAT.z0+MAT.h/2, MAT.w, MAT.h, false);
+makeHit('zone:mesa', 0, -7.1, 20, 11, false);
+
+/* Pawns */
+function makePawn(key, col, ring){
+  const g=new THREE.Group(), mat=new THREE.MeshStandardMaterial({color:col,roughness:.35,metalness:.2});
+  const add=(geo,y,m=mat)=>{const x=new THREE.Mesh(geo,m); x.position.y=y; x.castShadow=true; x.userData={key}; g.add(x); pickables.push(x); return x;};
+  add(new THREE.CylinderGeometry(0.26,0.3,0.1,28),0.05, new THREE.MeshStandardMaterial({color:ring,roughness:.4,metalness:.4}));
+  add(new THREE.CylinderGeometry(0.11,0.2,0.48,24),0.34); add(new THREE.SphereGeometry(0.16,24,16),0.7);
+  g.userData={key}; byKey[key]=g; scene.add(g); return g;
+}
+makePawn('pawn:mark', 0x3d7bd9, 0xd9b25f); makePawn('pawn:lola', 0x9a958a, 0xe0b532);
+const pawnSpot = (who, loc) => new THREE.Vector3(LOC[loc].x + (who==='mark'?-0.42:0.42), BASEY+CT/2, LOC[loc].z + 0.62);
+function placePawn(who){ byKey['pawn:'+who].position.copy(pawnSpot(who, S[who].loc)); }
+
+/* Chaos bag */
+(function buildBag(){
+  const pts=[[0,0],[.55,.02],[.82,.25],[.9,.6],[.8,.95],[.5,1.2],[.34,1.32],[.4,1.45],[.55,1.62],[.5,1.66]].map(([x,y])=>new THREE.Vector2(x,y));
+  const bag=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.LatheGeometry(pts,40),new THREE.MeshStandardMaterial({color:0x3b2341,roughness:.95,side:THREE.DoubleSide})); body.castShadow=true; body.userData={key:'bag'}; bag.add(body);
+  const tie=new THREE.Mesh(new THREE.TorusGeometry(.36,.05,10,32),new THREE.MeshStandardMaterial({color:0xd9b25f,roughness:.4,metalness:.5}));
+  tie.rotation.x=Math.PI/2; tie.position.y=1.3; bag.add(tie);
+  bag.position.copy(BAG_POS); bag.userData={key:'bag'}; scene.add(bag); byKey.bag=bag; pickables.push(body);
+  const halo=makeHalo(1.7,1.7); halo.position.set(BAG_POS.x,0.006,BAG_POS.z); scene.add(halo); TGT.bag={halo};
+})();
+
+/* Tokens: piles are driven purely by state counts */
+const TOKGEO = {
+  res:new THREE.CylinderGeometry(0.2,0.2,0.07,28), clue:new THREE.CylinderGeometry(0.17,0.17,0.12,6),
+  dmg:new THREE.BoxGeometry(0.2,0.2,0.2), hor:new THREE.BoxGeometry(0.2,0.2,0.2), doom:new THREE.CylinderGeometry(0.21,0.21,0.08,28),
+  ammo:new THREE.CylinderGeometry(0.12,0.12,0.16,20)
+};
+const TOKMAT = {
+  res:new THREE.MeshStandardMaterial({color:0xd7a34a,roughness:.35,metalness:.55}),
+  clue:new THREE.MeshStandardMaterial({color:0x3fbf7f,roughness:.3,emissive:0x0d3a24,emissiveIntensity:.6}),
+  dmg:new THREE.MeshStandardMaterial({color:0xc9302c,roughness:.45}), hor:new THREE.MeshStandardMaterial({color:0x3a6fd8,roughness:.45}),
+  doom:new THREE.MeshStandardMaterial({color:0x9e1a1a,roughness:.4,emissive:0x3a0505,emissiveIntensity:.8}),
+  ammo:new THREE.MeshStandardMaterial({color:0xe3b25a,roughness:.25,metalness:.8,emissive:0x3a2600,emissiveIntensity:.5})
+};
+const TOP = BASEY+CT/2;
+const PILES = {
+  'c:theatre':{kind:'clue',a:[0.4,TOP,-4.95],get:()=>S.locs.theatre.clues},
+  'c:lobby':{kind:'clue',a:[-2.8,TOP,-4.95],get:()=>S.locs.lobby.clues},
+  'c:balcony':{kind:'clue',a:[-1.2,TOP,-7.95],get:()=>S.locs.balcony.clues},
+  'c:backstage':{kind:'clue',a:[3.6,TOP,-4.95],get:()=>S.locs.backstage.clues},
+  'm:res':{kind:'res',stack:true,a:[-5.3,0.005,3.0],get:()=>S.mark.res},
+  'm:clue':{kind:'clue',a:[-4.2,0.005,3.0],get:()=>S.mark.clues},
+  'm:dmg':{kind:'dmg',a:[-6.2,TOP,1.0],get:()=>S.mark.dmg},
+  'm:hor':{kind:'hor',a:[-4.9,TOP,1.0],get:()=>S.mark.hor},
+  'm:ammo':{kind:'ammo',fly:true,a:[1.6,TOP,0.15],get:()=>S.mark.ammo},
+  'e:dmg':{kind:'dmg',a:[0.4,TOP,-7.95],get:()=>S.enemy.dmg}, // anchor moves with the enemy on Engage
+  'doom':{kind:'doom',a:[4.1,TOP,-10.3],get:()=>S.doom},
+};
+for(const k in PILES) PILES[k].meshes=[];
+const E_DMG_A = [...PILES['e:dmg'].a];
+function pilePos(p,i){
+  const [x,y,z]=p.a, gh=TOKGEO[p.kind].parameters.height||0.2;
+  if(p.stack) return new THREE.Vector3(x+(i%2)*0.02, y+gh/2+i*0.075, z);
+  return new THREE.Vector3(x+((i%3)-1)*0.3, y+gh/2, z+Math.floor(i/3)*0.3);
+}
+function arc(obj,to,{h=1.2,d=0.8,ease='power2.inOut',onComplete}={}){
+  const from=obj.position.clone(), p={t:0};
+  return gsap.to(p,{t:1,duration:D(d),ease,onComplete,onUpdate(){obj.position.set(from.x+(to.x-from.x)*p.t, from.y+(to.y-from.y)*p.t+Math.sin(Math.PI*p.t)*h, from.z+(to.z-from.z)*p.t);}});
+}
+function syncPile(k,instant,from,delay=0){
+  const p=PILES[k], n=p.get();
+  while(p.meshes.length>n){ const m=p.meshes.pop(); m.userData.tmp=true;
+    if(instant) scene.remove(m);
+    else if(p.fly){ // a spent use flies off the card
+      gsap.to(m.position,{x:'+=1.4',y:'+=2.4',z:'-=0.6',duration:D(.7),delay:D(delay),ease:'power2.out'});
+      gsap.to(m.rotation,{x:7,z:3,duration:D(.7),delay:D(delay)});
+      gsap.to(m.scale,{x:0,y:0,z:0,duration:D(.35),delay:D(delay+.45),onComplete:()=>scene.remove(m)});
+    } else gsap.to(m.scale,{x:0,y:0,z:0,duration:D(.3),onComplete:()=>scene.remove(m)}); }
+  while(p.meshes.length<n){
+    const i=p.meshes.length, m=new THREE.Mesh(TOKGEO[p.kind],TOKMAT[p.kind]); m.castShadow=true; scene.add(m); p.meshes.push(m);
+    const to=pilePos(p,i);
+    if(instant){ m.position.copy(to); continue; }
+    m.position.copy(from || to.clone().add(new THREE.Vector3(0,2.2,0)));
+    arc(m,to,{h:from?1.6:0.2,d:.7+i*0.05,ease:from?'power2.inOut':'bounce.out'});
+  }
+}
+const syncAll = instant => { for(const k in PILES) syncPile(k,instant); };
+
+/* Action pips on Mark's mat */
+const pipMeshes=[0,1,2].map(i=>{const m=new THREE.Mesh(new THREE.OctahedronGeometry(0.16),new THREE.MeshStandardMaterial({color:0xd9b25f,roughness:.3,metalness:.6,emissive:0x6b4d10,emissiveIntensity:.8}));
+  m.position.set(-7.0+i*0.4,0.2,3.0); m.castShadow=true; scene.add(m); return m;});
+function syncPips(){ pipMeshes.forEach((m,i)=>{ const on=i<S.mark.actions; m.material.emissiveIntensity=on?.9:0; m.material.color.set(on?0xd9b25f:0x3a3328); }); }
+
+/* =========================================================
+   CAMERA: two framings of the same table (≈ two CinemachineCameras)
+   ========================================================= */
+const VIEWS = {
+  mesa:{t:[0.8,0,-5.7], r:19, phi:.38, fit:1.9},   // map large, mat = slim strip at the bottom
+  mine:{t:[-0.1,0,2.1], r:13.8, phi:.29, fit:1.45}  // mat large, map = slim strip at the top
+};
+const cam = {target:new THREE.Vector3(...VIEWS.mesa.t), r:VIEWS.mesa.r, phi:VIEWS.mesa.phi};
+const fitK = v => Math.min(v.fit, Math.max(1, 1.6/(innerWidth/innerHeight)));
+const baseR = v => VIEWS[v].r*fitK(VIEWS[v]);
+function goView(v,instant){
+  const p=VIEWS[v], r=baseR(v);
+  gsap.killTweensOf(cam); gsap.killTweensOf(cam.target);
+  if(instant||RM){ cam.target.set(...p.t); cam.r=r; cam.phi=p.phi; return; }
+  gsap.to(cam,{r,phi:p.phi,duration:.35,ease:'power3.out'});
+  gsap.to(cam.target,{x:p.t[0],y:p.t[1],z:p.t[2],duration:.35,ease:'power3.out'});
+}
+function updateCamera(){
+  camera.position.set(cam.target.x, cam.target.y+cam.r*Math.cos(cam.phi), cam.target.z+cam.r*Math.sin(cam.phi));
+  camera.lookAt(cam.target);
+}
+function panBy(dx,dy){
+  const s=cam.r*0.0019;
+  cam.target.x=Math.max(-9,Math.min(9,cam.target.x-dx*s)); cam.target.z=Math.max(-11,Math.min(4.5,cam.target.z-dy*s));
+}
+
+/* Focus state: `focus` is committed, `peekView` is a temporary glance */
+let focus='mesa', peekView=null, peekSrc=null, shownView=null;
+const other = f => f==='mesa' ? 'mine' : 'mesa';
+const view = () => peekView || focus;
+function applyView(instant){
+  const v=view(), ui=$('#ui');
+  ui.classList.toggle('v-mesa',v==='mesa'); ui.classList.toggle('v-mine',v==='mine');
+  const tg=$('#toggle');
+  tg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.f===focus)));
+  const sb=tg.querySelector(`[data-f="${v}"]`), th=tg.querySelector('.thumb');
+  th.style.width=sb.offsetWidth+'px'; th.style.transform=`translateX(${sb.offsetLeft-3}px)`;
+  tg.classList.toggle('peek',!!peekView); $('#peekTag').hidden=!peekView;
+  $('#peekTag').textContent = peekView ? `PEEK · ${ZN[peekView]}` : '';
+  $('#edgeUp').hidden = v!=='mine'; $('#edgeDown').style.visibility = v==='mesa' ? 'visible' : 'hidden';
+  matMesh.material.emissiveIntensity = v==='mine' ? .06 : 0;
+  if(v!==shownView || instant){ shownView=v; goView(v,instant); }
+}
+function setFocus(f,instant){ focus=f; peekView=null; peekSrc=null; applyView(instant); }
+function peek(v,src){ if(v===focus) v=null; peekView=v; peekSrc=v?src:null; applyView(); }
+function unpeek(src){ if(peekSrc===src) peek(null); }
+function resize(){ renderer.setSize(innerWidth,innerHeight,false); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); if(shownView) applyView(true); }
+addEventListener('resize',resize); resize();
+
+/* Pointer input: pan / pinch / vertical swipe (touch) / click / hover / wheel */
+const el = renderer.domElement, ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+const ptrs = new Map(); let drag=null, hoverKey=null;
+function pick(x,y){
+  const r=el.getBoundingClientRect(); ndc.set((x-r.left)/r.width*2-1, -(y-r.top)/r.height*2+1);
+  ray.setFromCamera(ndc,camera);
+  for(const h of ray.intersectObjects(pickables,false)){ const o=h.object; if(!o.visible || (o.parent && !o.parent.visible)) continue; if(o.userData.key) return o.userData.key; }
+  return null;
+}
+const pinchInfo = () => { const [a,b]=[...ptrs.values()]; return {d:Math.hypot(a.x-b.x,a.y-b.y), x:(a.x+b.x)/2, y:(a.y+b.y)/2}; };
+el.addEventListener('contextmenu',e=>e.preventDefault());
+el.addEventListener('pointerdown',e=>{
+  el.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===1) drag={mode:'pend',moved:0,x0:e.clientX,y0:e.clientY,touch:e.pointerType!=='mouse'};
+  else { gsap.killTweensOf(cam); drag={mode:'pinch',moved:99,...pinchInfo()}; }
+});
+el.addEventListener('pointermove',e=>{
+  const p=ptrs.get(e.pointerId);
+  if(!p){ if(e.pointerType==='mouse') setHover(pick(e.clientX,e.clientY)); return; }
+  const dx=e.clientX-p.x, dy=e.clientY-p.y; p.x=e.clientX; p.y=e.clientY;
+  if(!drag) return;
+  if(drag.mode==='pinch' && ptrs.size===2){
+    const q=pinchInfo(), b=baseR(view()); cam.r=Math.max(b*.6,Math.min(b*1.35,cam.r*drag.d/Math.max(1,q.d))); panBy(q.x-drag.x,q.y-drag.y); Object.assign(drag,q); return;
+  }
+  drag.moved+=Math.abs(dx)+Math.abs(dy);
+  if(drag.moved<6) return;
+  if(drag.mode==='pend'){
+    const tx2=e.clientX-drag.x0, ty2=e.clientY-drag.y0;
+    drag.mode = drag.touch && Math.abs(ty2)>Math.abs(tx2)*1.3 ? 'swipe' : 'pan';
+    if(drag.mode==='pan'){ gsap.killTweensOf(cam); gsap.killTweensOf(cam.target); host.style.cursor='grabbing'; }
+  }
+  if(drag.mode==='pan') panBy(dx, drag.touch?0:dy);
+});
+function endPtr(e){
+  if(!ptrs.has(e.pointerId)) return;
+  const wasClick = drag && drag.moved<6 && ptrs.size===1;
+  ptrs.delete(e.pointerId);
+  if(wasClick && e.type==='pointerup'){ const k=pick(e.clientX,e.clientY); if(k) actOn(k,e.pointerType!=='mouse'); else hideTip(); }
+  if(drag && drag.mode==='swipe' && e.type==='pointerup'){ const dy=e.clientY-drag.y0; if(Math.abs(dy)>50) setFocus(dy<0?'mine':'mesa'); }
+  drag = ptrs.size ? {mode:'pan',moved:99,touch:true} : null;
+  host.style.cursor='';
+}
+el.addEventListener('pointerup',endPtr); el.addEventListener('pointercancel',endPtr);
+el.addEventListener('pointerleave',e=>{ if(e.pointerType==='mouse' && !ptrs.size) setHover(null); });
+let wheelAcc=0;
+el.addEventListener('wheel',e=>{
+  e.preventDefault(); gsap.killTweensOf(cam);
+  const v=view(), b=baseR(v), lo=b*.6, hi=b*1.3, nr=cam.r*Math.exp(e.deltaY*0.0012);
+  const atLimit = (e.deltaY>0 && cam.r>=hi-1e-3) || (e.deltaY<0 && cam.r<=lo+1e-3);
+  cam.r=Math.max(lo,Math.min(hi,nr));
+  if(!atLimit){ wheelAcc=0; return; }
+  wheelAcc+=Math.abs(e.deltaY);
+  if(wheelAcc<240) return; wheelAcc=0;
+  // overscroll pushes to the other focus: zoom out past the limit on the mat -> Mesa; zoom in on the bottom strip from Mesa -> Minha área
+  if(v==='mine' && e.deltaY>0) setFocus('mesa');
+  else if(v==='mesa' && e.deltaY<0 && e.clientY>innerHeight*.7) setFocus('mine');
+},{passive:false});
+
+/* Hover = card lifts & tilts toward camera (+ 2D zoom) */
+let liftKey=null;
+function setLift(key){
+  if(key===liftKey) return;
+  const old=byKey[liftKey]; if(old && old.userData.isCard) gsap.to(old.userData,{lift:0,duration:D(.25)});
+  liftKey=key; const m=byKey[key]; if(m && m.userData.isCard) gsap.to(m.userData,{lift:1,duration:D(.3),ease:'power2.out'});
+}
+function setHover(k){
+  const zk = k && k.startsWith('zone:') ? k.slice(5) : null; if(zk) k=null;
+  host.classList.toggle('hover', !!k || (!!zk && zk!==view()));
+  if(k===hoverKey) return; hoverKey=k;
+  if(tipMenu || tapKey || M) return; // a pinned tooltip / menu / the modal wins over hover
+  setLift(k);
+  clearTimeout(tipHideT);
+  if(k) showTip(k); else tipHideT=setTimeout(()=>{ if(!tipMenu && !tapKey) hideTip(); },200);
+}
+
+/* =========================================================
+   RENDER LOOP
+   ========================================================= */
+const UP=new THREE.Vector3(0,1,0), Y=new THREE.Vector3(0,1,0), qB=new THREE.Quaternion(), qT=new THREE.Quaternion(), qI=new THREE.Quaternion(), dir=new THREE.Vector3();
+let legal=new Set(), hlKey=null;
+function loop(ms){
+  requestAnimationFrame(loop);
+  const t=ms/1000; updateCamera();
+  for(const c of cards){
+    const u=c.userData, b=u.base;
+    c.position.set(b.x, b.y+u.lift*0.95, b.z+u.lift*0.25);
+    qB.setFromAxisAngle(Y,b.rotY);
+    if(u.lift>0.001){ dir.subVectors(camera.position,c.position).normalize(); qT.setFromUnitVectors(UP,dir); qI.identity().slerp(qT,u.lift*0.6); c.quaternion.copy(qI).multiply(qB); c.scale.setScalar(1+u.lift*0.18); }
+    else { c.quaternion.copy(qB); if(c.scale.x!==1 && !u.dying) c.scale.setScalar(1); }
+  }
+  for(const k in TGT){
+    const g=TGT[k], on=legal.has(k), em=on && k===hlKey;
+    g.halo.visible=on;
+    const pulse = RM ? .7 : .5+.32*Math.sin(t*4.2);
+    if(on){ g.halo.material.opacity = em ? 1 : pulse; g.halo.scale.setScalar(em?1.1:1); }
+    if(g.face) g.face.emissiveIntensity = on ? (em ? .28 : (RM?.1:.06+.08*Math.sin(t*4.2))) : 0;
+  }
+  if(!RM) byKey.bag.rotation.y = Math.sin(t*.6)*0.08;
+  renderer.render(scene,camera);
+  updateOverlay();
+}
+
+/* =========================================================
+   SCRIPTED STATE MACHINE
+   S.mode: 'choose' → 'busy' → 'test' (setup → drawing → result → done) → 'ended'
+   choices() plays the role of the server's ChooseOne payload. Every choice is
+   attached to the object it acts on (target); there is no separate list.
+   ========================================================= */
+const N = id => CARDS[id].name;
+const enemyHere = () => !S.enemy.defeated && S.enemy.loc===S.mark.loc;
+const MOCK_LOCS = ['theatre','lobby']; // Parley + fast action (mock) live here
+function choices(){
+  const m=S.mark, L=[];
+  if(S.mode!=='choose') return L;
+  const A=(target,label,cost,test,run,x={})=>L.push({target,label,cost,test,run,...x});
+  if(m.actions>0){
+    for(const c of conns(m.loc)) if(REVEALED.includes(c)) A('loc:'+c,`Move to ${N(c)}`,'1 action',null,()=>doMove(c));
+    if(S.locs[m.loc].clues>0) A('loc:'+m.loc,`Investigate ${N(m.loc)}`,'1 action',`Intellect 2 vs Shroud ${CARDS[m.loc].shroud}`,startInvestigate);
+    if(MOCK_LOCS.includes(m.loc)) A('loc:'+m.loc,'Parley (mock)','1 action',null,doParley);
+    if(enemyHere()){
+      if(!S.enemy.engaged) A('enemy','Engage','1 action · legal because he is Aloof',null,doEngage);
+      A('enemy','Fight with Machete','1 action','Combat 5 +1 vs Fight 4',()=>startFight('machete'));
+      if(m.ammo>0) A('enemy','Fight with .45 Automatic',`1 action + 1 ammo (${m.ammo} left)`,'Combat 5 +1 vs Fight 4',()=>startFight('fortyFive'));
+      if(!S.enemy.exhausted) A('enemy','Evade','1 action','Agility 3 vs Evade 2',startEvade);
+    }
+    if(m.hand.includes('emergencyCache')) A('hand:emergencyCache','Play Emergency Cache','1 action · gain 3 resources',null,playCache);
+    if(m.deck>0) A('deck','Draw 1 card','1 action',null,drawCard1);
+    A('res','Gain 1 resource','1 action',null,gainRes);
+  }
+  if(MOCK_LOCS.includes(m.loc) && !S.fastUsed) A('loc:'+m.loc,'Fast action (mock)','free · once per turn',null,doFastMock);
+  if(S.justDefeated && m.hand.includes('evidence') && m.res>=1 && S.locs[m.loc].clues>0)
+    A('hand:evidence','Play Evidence!','fast · 1 resource · discover 1 clue',null,playEvidence);
+  A('mark:inv','End turn','ends Mark\'s turn',null,endTurn,{meta:true});
+  return L;
+}
+
+/* --- actions --- */
+function spend(){ S.mark.actions--; syncPips(); bump('act'); }
+function doMove(to){
+  spend(); const from=S.mark.loc; S.mode='busy'; log(`Mark Harrigan moves from ${N(from)} to ${N(to)}.`,'act'); refresh();
+  arc(byKey['pawn:mark'], pawnSpot('mark',to), {h:1.4,d:.95,onComplete(){
+    S.mark.loc=to; S.mode='choose';
+    if(enemyHere()) log('The Man in the Pallid Mask is here (Aloof: he does not engage). Click him to act.','sys');
+    refresh();
+  }});
+}
+function playCache(){
+  spend(); S.mark.res+=3; S.mark.hand=S.mark.hand.filter(x=>x!=='emergencyCache'); toDiscard('emergencyCache');
+  log('Mark plays Emergency Cache: +3 resources.','act'); syncPile('m:res'); bump('rs'); floatText(byKey.res.position,'+3 ¤','ok'); refresh();
+}
+let freshCard=null;
+function drawCard1(){
+  spend(); S.mark.deck--; const id=DRAWS[S.drawn++ % DRAWS.length]; S.mode='busy';
+  const deck=byKey.deck, top=deck.scale.y+0.03;
+  setPileHeight(deck,S.mark.deck); bump('deck'); log(`Mark draws a card (${N(id)}). Deck: ${S.mark.deck}.`,'act'); refresh();
+  floatText(deck.position,'+1 card','ok');
+  // a real card leaves the top of the deck face down, flips in the air and flies to the hand
+  const m=new THREE.Mesh(new THREE.BoxGeometry(CW,CT,CH),[edgeMat,edgeMat,new THREE.MeshStandardMaterial({map:texFrom(drawCard(CARDS[id],1.2)),roughness:.6}),new THREE.MeshStandardMaterial({map:backTex,roughness:.7}),edgeMat,edgeMat]);
+  m.userData.tmp=true; m.castShadow=true; m.position.set(deck.position.x,top,deck.position.z); m.rotation.x=Math.PI; scene.add(m);
+  const hb=$('#hand').getBoundingClientRect();
+  const q=new THREE.Vector3((hb.left+hb.width/2)/innerWidth*2-1, -((hb.top+hb.height*.4)/innerHeight)*2+1, .5).unproject(camera);
+  const to=camera.position.clone().add(q.sub(camera.position).normalize().multiplyScalar(4));
+  gsap.timeline({onComplete(){ scene.remove(m); S.mark.hand.push(id); freshCard=id; S.mode='choose'; refresh(); }})
+    .to(m.position,{y:top+1.4,duration:D(.3),ease:'power2.out'})
+    .to(m.rotation,{x:0,duration:D(.4),ease:'power2.inOut'},'-=.1')
+    .to(m.position,{x:to.x,y:to.y,z:to.z,duration:D(.5),ease:'power2.in'})
+    .to(m.scale,{x:.35,y:.35,z:.35,duration:D(.5),ease:'power2.in'},'<');
+}
+function gainRes(){ spend(); S.mark.res++; log('Mark gains 1 resource.','act'); syncPile('m:res'); bump('rs'); floatText(byKey.res.position,'+1 ¤','ok'); refresh(); }
+function playEvidence(){
+  S.mark.res--; S.mark.hand=S.mark.hand.filter(x=>x!=='evidence'); toDiscard('evidence'); S.locs[S.mark.loc].clues--; S.mark.clues++; S.justDefeated=false;
+  log(`Mark plays Evidence! and discovers 1 clue at ${N(S.mark.loc)}.`,'ok');
+  const src=PILES['c:'+S.mark.loc].meshes.at(-1); const from=src?src.position.clone():null;
+  syncPile('m:res'); syncPile('c:'+S.mark.loc); syncPile('m:clue',false,from); bump('rs'); bump('cl'); refresh();
+}
+function doParley(){
+  spend(); log(`Mark tries to parley at the ${N(S.mark.loc)} (mock: nobody answers).`,'act');
+  floatText(byKey['loc:'+S.mark.loc].position,'Parley (mock)','ok'); refresh();
+}
+function doFastMock(){
+  S.fastUsed=true; log(`Fast action at the ${N(S.mark.loc)} (mock: no effect, no action spent).`,'act');
+  floatText(byKey['loc:'+S.mark.loc].position,'Fast (mock)','ok'); refresh();
+}
+const ENGAGE_POS = {x:-0.05, z:-7.0}; // next to Mark's pawn on the Balcony
+function doEngage(){
+  spend(); S.enemy.engaged=true; S.mode='busy';
+  log('Mark engages The Man in the Pallid Mask (Aloof: he only engages if you choose to). Machete now deals +1 damage.','act'); refresh();
+  const b=byKey.enemy.userData.base, dx=ENGAGE_POS.x-b.x, dz=ENGAGE_POS.z-b.z, P=PILES['e:dmg'];
+  P.a[0]+=dx; P.a[2]+=dz;
+  P.meshes.forEach(m=>gsap.to(m.position,{x:m.position.x+dx,z:m.position.z+dz,duration:D(.6),ease:'power2.inOut'}));
+  gsap.timeline({onComplete(){ S.mode='choose'; refresh(); }})
+    .to(b,{x:ENGAGE_POS.x,z:ENGAGE_POS.z,duration:D(.6),ease:'power2.inOut'})
+    .to(b,{y:BASEY+.35,duration:D(.3),yoyo:true,repeat:1,ease:'power1.out'},0);
+}
+function endTurn(){ S.mode='ended'; log('Mark Harrigan ends his turn. Lola Hayes would act next (not scripted in this mock). Press Reset to replay.','sys'); refresh(); }
+function toDiscard(id){ S.mark.disc=id; S.mark.discN++; const f=TGT.disc.face; f.map.dispose(); f.map=texFrom(drawCard(CARDS[id],1.6)); f.needsUpdate=true; bump('disc'); }
+
+/* --- skill tests (logic unchanged; it now renders inside the action modal) --- */
+function startTest(cfg){
+  S.mode='test'; S.test={commit:[],sophie:false,pt:0,phase:'setup',token:null,...cfg};
+  log(`Skill test: ${cfg.title}. ${SK[cfg.icon][0]} ${cfg.base} vs ${cfg.diff}.`,'sys');
+  refresh();
+}
+function startFight(w){
+  spend();
+  if(w==='fortyFive'){
+    S.mark.ammo--; log(`.45 Automatic: spend 1 ammo (${S.mark.ammo} left).`,'act');
+    syncPile('m:ammo',false,null,.3); bump('am');
+  }
+  startTest({kind:'fight',weapon:w,icon:'C',base:5,mods:[{label:N(w),v:1}],diff:4,diffLabel:'Fight',title:`Mark fights The Man in the Pallid Mask with ${N(w)}`});
+}
+function startEvade(){ spend(); startTest({kind:'evade',icon:'A',base:3,mods:[],diff:2,diffLabel:'Evade',title:'Mark evades The Man in the Pallid Mask'}); }
+function startInvestigate(){ spend(); startTest({kind:'inv',icon:'I',base:2,mods:[],diff:CARDS[S.mark.loc].shroud,diffLabel:'Shroud',title:`Mark investigates the ${N(S.mark.loc)}`}); }
+function testTotal(T=S.test){
+  return T.base + T.mods.reduce((a,m)=>a+m.v,0) + (T.sophie?2:0) + T.pt
+    + T.commit.reduce((a,id)=>a+CARDS[id].icons.filter(k=>k===T.icon).length,0);
+}
+const passes = (t,total,diff) => t!=='autofail' && total+tokMod(t) >= diff;
+function successChance(){ const tot=testTotal(); const ok=BAG.filter(t=>passes(t,tot,S.test.diff)).length; return {ok, n:BAG.length, p:ok/BAG.length}; }
+function toggleCommit(id){
+  const T=S.test; if(!T || T.phase!=='setup') return;
+  const on=T.commit.includes(id); on?T.commit.splice(T.commit.indexOf(id),1):T.commit.push(id);
+  log(`${on?'Uncommits':'Commits'} ${N(id)}.`); refresh();
+}
+function useSophie(){
+  if(!S.test || S.test.phase!=='setup' || S.test.sophie) return;
+  S.test.sophie=true; S.mark.dmg++; log('Sophie: Mark takes 1 direct damage, +2 skill for this test.','act');
+  syncPile('m:dmg',false,byKey['card:sophie'].position.clone().add(new THREE.Vector3(0,.4,0))); bump('hp'); refresh();
+}
+function usePT(){
+  if(!S.test || S.test.phase!=='setup' || S.mark.res<1) return;
+  S.test.pt++; S.mark.res--; log(`Physical Training: spend 1 resource, +1 combat (${S.mark.res} resources left).`,'act');
+  syncPile('m:res'); bump('rs'); refresh();
+}
+function drawToken(){
+  const T=S.test; if(!T || T.phase!=='setup') return;
+  T.phase='drawing'; T.token=SEQ[seqIdx++ % SEQ.length]; refresh();
+  gsap.fromTo(byKey.bag.scale,{x:1,y:1,z:1},{x:1.1,y:.9,z:1.1,duration:D(.12),yoyo:true,repeat:5});
+  // the reveal happens inside the modal (spinning token → face), no camera trip
+  gsap.delayedCall(RM?.3:1.1,()=>{
+    if(S.test!==T) return;
+    const tok=T.token, ok=passes(tok,testTotal(),T.diff), mod=tokMod(tok);
+    T.phase='result'; T.success=ok;
+    log(`Chaos token: ${tok==='autofail'?'Auto-fail':TOK[tok]?TOK[tok].name+' ('+(mod>0?'+':'')+mod+')':tokSym(tok)} → ${ok?'SUCCESS':'FAILURE'}${mod!=null?` (${testTotal()+mod} vs ${T.diff})`:''}.`, ok?'ok':'bad');
+    refresh();
+  });
+}
+function resolveTest(){
+  const T=S.test; if(!T || T.phase!=='result') return;
+  T.phase='done'; S.mode='busy';
+  if(T.commit.length){ S.mark.hand=S.mark.hand.filter(id=>!T.commit.includes(id)); T.commit.forEach(toDiscard); log(`Discarded committed: ${T.commit.map(N).join(', ')}.`,'sys'); }
+  closeModal(); refresh(); // the camera stays on the target so the consequence is seen there
+  const done=()=>{ S.test=null; S.mode='choose'; refresh(); if(S.justDefeated) toast('Evidence! is now legal — see the badge on "Minha área".'); backToFocus(.9); };
+  if(T.kind==='fight') return attackFX(T,done);
+  const e=byKey.enemy, lp=byKey['loc:'+S.mark.loc].position;
+  gsap.delayedCall(D(.35),()=>{
+    if(T.kind==='evade'){
+      if(T.success){ S.enemy.exhausted=true; S.enemy.engaged=false; gsap.to(e.userData.base,{rotY:-Math.PI/2,duration:D(.6),ease:'back.out'}); floatText(e.position,'Evaded','ok');
+        log('The Man in the Pallid Mask is evaded and exhausted.','ok'); }
+      else { shake(e,.07); floatText(e.position,'Failed','miss'); log('Mark fails to slip away.','bad'); }
+    } else if(T.success){
+      const src=PILES['c:'+S.mark.loc].meshes.at(-1), from=src?src.position.clone():null;
+      S.locs[S.mark.loc].clues--; S.mark.clues++; syncPile('c:'+S.mark.loc); syncPile('m:clue',false,from); bump('cl');
+      floatText(lp,'+1 clue','ok'); log(`Mark discovers 1 clue at the ${N(S.mark.loc)}.`,'ok');
+    } else { floatText(lp,'Nothing found','miss'); log('Mark finds nothing.','bad'); }
+    gsap.delayedCall(1.4,done);
+  });
+}
+/* attack feedback: pawn lunges, impact flash, enemy card shakes, −N ♥, damage cubes bounce */
+const flashL = new THREE.PointLight(0xffc98a, 0, 7); scene.add(flashL);
+function shake(o,a){ const b=o.userData.base, x=b.x; gsap.timeline().to(b,{x:x+a,duration:D(.05)}).to(b,{x:x-a,duration:D(.05),repeat:3,yoyo:true}).to(b,{x,duration:D(.05)}); }
+function flash(p){
+  flashL.position.set(p.x,1.2,p.z); gsap.fromTo(flashL,{intensity:4},{intensity:0,duration:D(.45),ease:'power2.out'});
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.4,.62,48),new THREE.MeshBasicMaterial({color:0xffd08a,transparent:true,depthWrite:false}));
+  ring.rotation.x=-Math.PI/2; ring.position.set(p.x,0.05,p.z); ring.userData.tmp=true; scene.add(ring);
+  gsap.to(ring.scale,{x:3,y:3,z:3,duration:D(.5),ease:'power2.out'}); gsap.to(ring.material,{opacity:0,duration:D(.5),onComplete:()=>scene.remove(ring)});
+}
+function attackFX(T,done){
+  const pawn=byKey['pawn:mark'], e=byKey.enemy, from=pawn.position.clone(), hit=from.clone().lerp(e.position,.55);
+  gsap.timeline({delay:D(.35)})
+    .to(pawn.position,{x:hit.x,z:hit.z,y:from.y+.35,duration:D(.22),ease:'power2.in'})
+    .add(()=>impact(T))
+    .to(pawn.position,{x:from.x,y:from.y,z:from.z,duration:D(.4),ease:'power2.out'})
+    .add(()=>gsap.delayedCall(S.enemy.defeated?1.7:1.1,done));
+}
+function impact(T){
+  const e=byKey.enemy;
+  if(!T.success){ shake(e,.07); floatText(e.position,'Miss','miss'); log('The attack misses.','bad'); return; }
+  const vb=T.commit.includes('viciousBlow'), gun=T.weapon==='fortyFive', mach=T.weapon==='machete' && S.enemy.engaged, dmg=1+(vb?1:0)+(gun?1:0)+(mach?1:0);
+  const old=[...PILES['e:dmg'].meshes];
+  S.enemy.dmg=Math.min(3,S.enemy.dmg+dmg); syncPile('e:dmg');
+  old.forEach(m=>gsap.fromTo(m.position,{y:m.position.y+.45},{y:m.position.y,duration:D(.6),ease:'bounce.out'}));
+  flash(e.position); shake(e,.14); floatText(e.position,`−${dmg} ♥`);
+  log(`Deals ${dmg} damage to The Man in the Pallid Mask (${S.enemy.dmg}/3).${gun?' .45 +1.':''}${vb?' Vicious Blow +1.':''}${T.weapon==='machete'?(mach?' Machete +1 (engaged).':' Machete +1 dmg n/a (not engaged).'):''}`,'ok');
+  if(S.enemy.dmg>=3){
+    S.enemy.defeated=true; S.enemy.engaged=false; S.justDefeated=true; log('The Man in the Pallid Mask is defeated! Evidence! is now playable (Minha área).','ok');
+    e.userData.dying=true;
+    gsap.to(e.userData.base,{y:2.5,duration:D(.8),delay:D(.6),ease:'power2.in'});
+    gsap.to(e.scale,{x:.01,y:.01,z:.01,duration:D(.8),delay:D(.6),onComplete:()=>{e.visible=false; PILES['e:dmg'].meshes.forEach(x=>x.visible=false);}});
+  }
+}
+
+/* =========================================================
+   UI RENDERING — every action lives on its object
+   hover = tooltip beside it · click = act (single, no test) or open the action modal
+   ========================================================= */
+let cur=[];
+const GORDER = {mesa:0, mine:1};
+function refresh(){
+  cur=choices().map((c,i)=>({...c, zone:zoneOf(c.target), i})).sort((a,b)=>GORDER[a.zone]-GORDER[b.zone]||a.i-b.i);
+  legal=new Set(cur.filter(c=>!c.meta).map(c=>c.target));
+  renderHand(); renderBadges(); renderTags(); renderHits(); renderActionModal(); syncPips();
+  if(tipKey) showTip(tipKey,tipMenu);
+}
+function renderBadges(){
+  for(const [z,id] of [['mesa','#bdgMesa'],['mine','#bdgMine']]){
+    const n=cur.filter(c=>c.zone===z && !c.meta).length, b=$(id);
+    b.textContent=n; b.classList.toggle('z',!n); b.parentElement.setAttribute('aria-label',`${ZN[z]}: ${n} legal action${n===1?'':'s'}`);
+  }
+}
+
+/* Mat labels: numbers projected next to what they count (replaces the old vitals strip) */
+const USES = {sophie:()=>'+2 (fast)', machete:()=>'+1 ⚔', fortyFive:()=>`${S.mark.ammo} ammo`, guardDog:()=>`${3-S.mark.dogDmg}/3 ♥`, physTraining:()=>'¤ → +1', leatherCoat:()=>`${2-S.mark.coatDmg}/2 ♥`};
+const SHORT = {sophie:'Sophie', machete:'Machete', fortyFive:'.45', guardDog:'Guard Dog', physTraining:'Phys. Training', leatherCoat:'Leather Coat'};
+const TAGS = {hp:[-6.2,1.62], san:[-4.9,1.62], act:[-6.6,2.5], rs:[-5.3,2.42], cl:[-4.2,2.42], deck:[4.1,1.75], disc:[6.0,1.75]};
+for(const [id,x,z] of SLOTS) TAGS['a:'+id]=[x,z+0.98];
+for(const k in TAGS){ const d=document.createElement('div'); d.className='tag3 t-'+k.replace(':','-'); $('#tags').appendChild(d); TAGS[k]={el:d,p:new THREE.Vector3(TAGS[k][0],0.15,TAGS[k][1]),h:''}; }
+function renderTags(){
+  const m=S.mark, h={hp:`<i>HP</i><b>${9-m.dmg}</b><small>/9</small>`, san:`<i>SAN</i><b>${5-m.hor}</b><small>/5</small>`,
+    act:`<i>ACTIONS</i><b>${m.actions}</b><small>/3</small>`, rs:`<i>RES</i><b>${m.res}</b>`, cl:`<i>CLUES</i><b>${m.clues}</b>`,
+    deck:`<i>DECK</i><b>${m.deck}</b>`, disc:`<i>DISCARD</i><b>${m.discN}</b>`};
+  for(const id in USES) h['a:'+id]=`<span class="nm">${esc(SHORT[id])} · </span><b>${esc(USES[id]())}</b>`;
+  for(const k in h){ const t=TAGS[k]; if(t.h!==h[k]){ t.h=h[k]; t.el.innerHTML=h[k]; } }
+}
+const bump = k => { const t=TAGS[k==='am'?'a:fortyFive':k]; if(!t) return; t.el.classList.remove('bump'); void t.el.offsetWidth; t.el.classList.add('bump'); };
+
+/* Keyboard hit-targets: one focusable button projected over each actionable 3D object */
+const hitEls = new Map();
+function hitKeys(){
+  const ks=cur.map(c=>c.target).filter(k=>!k.startsWith('hand:'));
+  ks.push('loc:'+S.mark.loc,'mark:inv'); if(!S.enemy.defeated) ks.push('enemy');
+  return [...new Set(ks)];
+}
+function renderHits(){
+  const want=hitKeys();
+  for(const [k,b] of hitEls) if(!want.includes(k)){ b.remove(); hitEls.delete(k); }
+  for(const k of want){
+    let b=hitEls.get(k);
+    if(!b){
+      b=document.createElement('button'); b.className='hit'; b.dataset.key=k;
+      b.onclick=()=>actOn(k,false);
+      b.onfocus=()=>{ const z=zoneOf(k); if(z!==view()) setFocus(z); hlKey=k; showTip(k); };
+      b.onblur=()=>{ if(hlKey===k) hlKey=null; if(tipKey===k && !tipMenu) hideTip(); };
+      $('#hits').appendChild(b); hitEls.set(k,b);
+    }
+    const acts=cur.filter(c=>c.target===k);
+    b.setAttribute('aria-label',`${tipTitle(k)}: ${acts.length?acts.map(a=>a.label).join(', '):'no actions now'}`);
+  }
+}
+const _b=new THREE.Box3(), _v=new THREE.Vector3();
+function screenRect(key){
+  const o=byKey[key]; if(!o || !o.visible) return null;
+  if(o.isMesh){ if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); o.updateMatrixWorld(); _b.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); }
+  else _b.setFromObject(o);
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(let i=0;i<8;i++){
+    _v.set(i&1?_b.max.x:_b.min.x, i&2?_b.max.y:_b.min.y, i&4?_b.max.z:_b.min.z).project(camera);
+    const x=(_v.x+1)/2*innerWidth, y=(1-_v.y)/2*innerHeight;
+    x0=Math.min(x0,x); x1=Math.max(x1,x); y0=Math.min(y0,y); y1=Math.max(y1,y);
+  }
+  return {x0,y0,x1,y1};
+}
+const tagsBox=$('#tags'), hitsBox=$('#hits'), tipBox=$('#tip');
+function updateOverlay(){ // called every frame after render
+  const open=!!M, showTags=!open && view()==='mine' && shownView!=='target';
+  if(tagsBox.hidden===showTags) tagsBox.hidden=!showTags;
+  if(showTags) for(const k in TAGS){ const t=TAGS[k]; _v.copy(t.p).project(camera); t.el.style.transform=`translate(${(_v.x+1)/2*innerWidth}px,${(1-_v.y)/2*innerHeight}px) translate(-50%,-50%)`; }
+  if(hitsBox.hidden!==open) hitsBox.hidden=open;
+  if(!open) for(const [k,b] of hitEls){
+    const r=screenRect(k);
+    if(!r){ b.style.display='none'; continue; }
+    b.style.display=''; b.style.transform=`translate(${r.x0}px,${r.y0}px)`; b.style.width=(r.x1-r.x0)+'px'; b.style.height=(r.y1-r.y0)+'px';
+  }
+  if(tipKey && !tipBox.hidden) placeTip();
+}
+
+/* Tooltip beside the object: name, state, and the actions available there (name · cost · test) */
+let tipKey=null, tipMenu=false, tapKey=null, tipHideT=null, tipRet=null;
+function tipTitle(key){ const d=previewData(key), def=d.def||(d.id&&CARDS[d.id]); return def?def.name:d.title; }
+function plan(key){
+  const acts=cur.filter(c=>c.target===key);
+  if(key==='mark:inv') return {type:acts.length?'menu':'none',acts};
+  const big = key==='enemy' || key==='loc:'+S.mark.loc; // acting on a location/enemy = the action modal
+  if(acts.length===1 && !acts[0].test && !big) return {type:'direct',acts,act:acts[0]};
+  if(acts.length || (big && S.mode==='choose')) return {type:'modal',acts};
+  return {type:'none',acts};
+}
+function showTip(key,menu=false){
+  if(M){ hideTip(); return; }
+  clearTimeout(tipHideT);
+  const d=previewData(key), def=d.def||(d.id&&CARDS[d.id]), p=plan(key), a=document.activeElement;
+  const verb = a && a.dataset && a.dataset.key===key ? 'Enter' : tapKey===key ? 'Tap again' : 'Click';
+  let h=`<div class="tt-h">${esc(tipTitle(key))}</div><div class="tt-i">${esc(d.info)}</div>`;
+  if(def && def.text && /^(hand|card|mark|lolahand):/.test(key)) h+=`<div class="tt-t">${esc(def.text)}</div>`;
+  if(menu) h+=`<div class="tt-btns">${p.acts.map((x,i)=>`<button class="chip${x.meta?' primary':''}" data-i="${i}">${esc(x.label)}</button>`).join('')}<button class="chip" data-x>Close</button></div>`;
+  else if(p.acts.length) h+=`<ul class="tt-a">${p.acts.map(x=>`<li><b>${esc(x.label)}</b><span>${esc(x.cost)}${x.test?' · test: '+esc(x.test):''}</span></li>`).join('')}</ul>`;
+  const hint = menu ? '' : p.type==='direct' ? `${verb}: ${p.act.label}` : p.type==='modal' ? `${verb}: open the action window` : p.type==='menu' ? `${verb}: open menu (End turn)` : S.mode==='ended' ? 'Turn over — press Reset to replay.' : '';
+  if(hint) h+=`<div class="tt-k">${esc(hint)}</div>`;
+  tipBox.innerHTML=h; tipBox.hidden=false; tipBox.classList.toggle('menu',menu); tipKey=key; tipMenu=menu;
+  tipBox.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{ const x=p.acts[+b.dataset.i]; hideTip(); x.run(); });
+  const x=tipBox.querySelector('[data-x]'); if(x) x.onclick=()=>hideTip();
+  placeTip();
+}
+function hideTip(){
+  const back = tipMenu && tipRet && tipBox.contains(document.activeElement) ? tipRet : null;
+  clearTimeout(tipHideT); tipBox.hidden=true; tipKey=null; tipMenu=false; tapKey=null; tipRet=null; setLift(hoverKey);
+  if(back && document.contains(back)) back.focus({preventScroll:true});
+}
+function tipRect(key){
+  if(/^(hand|lolahand):/.test(key)){ const el=document.querySelector(`[data-key="${key}"]`); if(el){ const r=el.getBoundingClientRect(); return {x0:r.left,y0:r.top,x1:r.right,y1:r.bottom}; } }
+  return screenRect(key);
+}
+function placeTip(){
+  const r=tipRect(tipKey); if(!r) return;
+  const w=tipBox.offsetWidth, h=tipBox.offsetHeight, g=12, W=innerWidth, H=innerHeight;
+  let x=r.x1+g; if(x+w>W-16) x=r.x0-g-w; if(x<16) x=Math.min(Math.max(16,(r.x0+r.x1)/2-w/2),W-16-w);
+  const y=Math.max(8,Math.min(H-h-8,(r.y0+r.y1)/2-h/2));
+  tipBox.style.transform=`translate(${Math.round(x)}px,${Math.round(y)}px)`;
+}
+/* Click / tap / Enter on an object. Touch: first tap = tooltip, second tap = act. */
+function actOn(key,touch){
+  if(key.startsWith('zone:')){ const z=key.slice(5); if(z!==view()) setFocus(z); else hideTip(); return; }
+  if(M || S.mode==='busy' || S.mode==='test') return;
+  const p=plan(key);
+  if(touch && tapKey!==key){ tapKey=key; setLift(key); showTip(key); return; }
+  tapKey=null;
+  if(p.type==='direct'){ hideTip(); p.act.run(); }
+  else if(p.type==='modal') openModal(key);
+  else if(p.type==='menu'){ const ret=document.activeElement; showTip(key,true); tipRet=ret; const b=tipBox.querySelector('button'); if(b) b.focus({preventScroll:true}); }
+  else { if(S.mode==='ended') toast('Turn over — press Reset to replay.'); showTip(key); }
+}
+
+function renderHand(){
+  const hand=S.mark.hand, box=$('#hand'); box.innerHTML='';
+  const n=hand.length;
+  hand.forEach((id,i)=>{
+    const k='hand:'+id, off=i-(n-1)/2;
+    const b=document.createElement('button'); b.className='hc'; b.dataset.key=k;
+    b.classList.add(legal.has(k)?'legal':'dim');
+    if(freshCard===id && i===n-1) b.classList.add('fresh');
+    b.style.setProperty('--r',(off*5)+'deg'); b.style.setProperty('--y',(Math.abs(off)*Math.abs(off)*3)+'px');
+    b.setAttribute('aria-label',`${N(id)}${legal.has(k)?' (can be played)':''}`);
+    b.innerHTML=`<img alt="" src="${cardURL(id)}">`;
+    b.onmouseenter=()=>{ if(!tipMenu && !tapKey) showTip(k); };
+    b.onmouseleave=()=>{ if(!tipMenu && !tapKey) hideTip(); };
+    b.onfocus=()=>{ hlKey=k; showTip(k); };
+    b.onblur=()=>{ if(hlKey===k) hlKey=null; if(tipKey===k && !tipMenu) hideTip(); };
+    b.onclick=e=>actOn(k, e.detail!==0 && lastPT!=='mouse');
+    box.appendChild(b);
+  });
+  freshCard=null;
+}
+let lastPT='mouse'; addEventListener('pointerdown',e=>{lastPT=e.pointerType;},true);
+
+/* =========================================================
+   BIG ACTION MODAL (location / enemy): card · actions · skill test
+   ========================================================= */
+let M=null;
+function focusTarget(key){ // ≈ a third CinemachineCamera with a dynamic tracking target
+  const o=byKey[key]; if(!o) return;
+  shownView='target'; gsap.killTweensOf(cam); gsap.killTweensOf(cam.target);
+  const p=o.position, r=8.5*fitK(VIEWS.mesa), phi=.5;
+  if(RM){ cam.target.set(p.x,0,p.z); cam.r=r; cam.phi=phi; return; }
+  gsap.to(cam,{r,phi,duration:.5,ease:'power3.out'}); gsap.to(cam.target,{x:p.x,y:0,z:p.z,duration:.5,ease:'power3.out'});
+}
+function backToFocus(sec){ gsap.delayedCall(sec,()=>{ if(M) return; shownView=null; applyView(); }); }
+function openModal(key){
+  M={key,acts:[],chosen:null,cardH:'',ret:document.activeElement};
+  hideTip(); setLift(null); host.classList.remove('hover');
+  focusTarget(key); refresh();
+  const b=$('#mList .act:not([disabled])')||$('#mClose'); b.focus({preventScroll:true});
+}
+function closeModal(back){
+  if(!M) return;
+  const ret=M.ret; M=null; renderActionModal();
+  if(ret && ret!==document.body && document.contains(ret)) ret.focus({preventScroll:true});
+  if(back) backToFocus(0);
+}
+function modalPick(a){
+  if(!a || S.mode!=='choose' || S.test) return;
+  if(a.test){ M.chosen=a.label; a.run(); return; } // the test opens in the right column
+  closeModal(); a.run(); backToFocus(1.6);           // e.g. Engage: watch the enemy slide, then return
+}
+function renderActionModal(){
+  const box=$('#modal');
+  if(!M){ box.hidden=true; return; }
+  const fa=document.activeElement, had=!!fa && box.contains(fa);
+  const keep=had ? ['a','commit','use','do'].filter(k=>fa.dataset[k]!=null).map(k=>`[data-${k}="${fa.dataset[k]}"]`)[0] : null;
+  box.hidden=false;
+  const key=M.key, en=key==='enemy', id=en?'pallid':key.slice(4), T=S.test, m=S.mark, E=S.enemy;
+  if(!T) M.acts=cur.filter(c=>c.target===key);
+  $('#mTitle').textContent=N(id);
+  $('#mSub').textContent=en?'Enemy · Humanoid · Elite':'Location · Curtain Call';
+  $('#mClose').hidden=!!T;
+  const here=w=>['mark','lola'].filter(x=>S[x].loc===w).map(x=>x==='mark'?'Mark Harrigan':'Lola Hayes').join(', ')||'nobody';
+  const facts = en
+    ? [['Fight',4],['Health',`3 · damage ${E.dmg}/3`],['Evade',2],['Status',E.defeated?'Defeated':E.exhausted?'Exhausted':'Ready'],['Aloof','never engages on his own — you may Engage him'],['Engaged',E.engaged?'with Mark':'no'],['At',N(E.loc)]]
+    : [['Shroud',CARDS[id].shroud],['Clues left',S.locs[id].clues],['Here',here(id)],['Connects to',conns(id).map(N).join(', ')]];
+  const cardH=`<img alt="${esc(N(id))} card" src="${cardURL(id)}"><dl class="facts">${facts.map(([a,b])=>`<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join('')}</dl>`;
+  if(M.cardH!==cardH){ M.cardH=cardH; $('#mCard').innerHTML=cardH; }
+  const why = S.mode==='ended' ? 'Your turn is over.' : m.actions<1 ? 'No actions left this turn — End turn is on the investigator card.'
+    : en && E.loc!==m.loc ? `He is at the ${N(E.loc)}. Move there to engage, fight or evade him.` : 'Nothing to do here right now.';
+  $('#mList').innerHTML=`<h3>ACTIONS</h3><p class="lbl">Mark: ${m.actions} of 3 actions · ${m.res} resources · .45: ${m.ammo} ammo</p>`+
+    (M.acts.length ? M.acts.map((a,i)=>`<button class="act${T&&M.chosen===a.label?' on':''}" data-a="${i}"${T?' disabled':''}><b>${esc(a.label)}</b><span>Cost: ${esc(a.cost)}</span><span class="tst">${a.test?'Test: '+esc(a.test):'No test — resolves at once'}</span></button>`).join('')
+      : `<p class="empty">${esc(why)}</p>`);
+  $('#mTest').innerHTML = T ? testHTML(T)
+    : '<h3>SKILL TEST</h3><p class="hint">Choose an action. If it calls for a test, it opens here: the equation, the cards you can commit, Physical Training / Sophie / ammo, your odds and the chaos token draw.</p>';
+  box.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>modalPick(M.acts[+b.dataset.a]));
+  box.querySelectorAll('[data-commit]').forEach(b=>b.onclick=()=>toggleCommit(b.dataset.commit));
+  box.querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>b.dataset.use==='pt'?usePT():useSophie());
+  box.querySelectorAll('[data-do]').forEach(b=>b.onclick=()=>b.dataset.do==='draw'?drawToken():b.dataset.do==='continue'?resolveTest():0);
+  if(had){ // keep keyboard focus across re-renders
+    let f=keep && box.querySelector(keep); if(!f || f.disabled) f=box.querySelector('#mTest .chip.primary')||$('#mClose');
+    if(f && f!==document.activeElement) f.focus({preventScroll:true});
+  }
+}
+function testHTML(T){
+  const tot=testTotal(), pc=successChance(), sk=SK[T.icon][0], m=S.mark, setup=T.phase==='setup';
+  const terms=[`<span class="term">${sk} ${T.base}</span>`, ...T.mods.map(x=>`<span class="term">${esc(x.label)} +${x.v}</span>`),
+    ...T.commit.map(id=>`<span class="term c">${esc(N(id))} +${CARDS[id].icons.filter(k=>k===T.icon).length}</span>`),
+    ...(T.pt?[`<span class="term c">Phys. Training +${T.pt}</span>`]:[]),
+    ...(T.sophie?['<span class="term c">Sophie +2</span>']:[])].join(' + ');
+  const toks=[...new Set(BAG)].map(t=>{const c=BAG.filter(x=>x===t).length, ok=passes(t,tot,T.diff); return `<span class="tk ${ok?'p':'f'}" title="${esc(tokDesc(t)+(ok?' Passes.':' Fails.'))}">${tokSym(t)}${c>1?`<sub>×${c}</sub>`:''}</span>`;}).join('');
+  const hand=m.hand.filter(id=>(CARDS[id].icons||[]).includes(T.icon));
+  const commits = hand.length ? `<div class="commits">${hand.map(id=>{ const on=T.commit.includes(id), n=CARDS[id].icons.filter(k=>k===T.icon).length;
+      return `<button class="cc" data-commit="${id}" aria-pressed="${on}"${setup?'':' disabled'} aria-label="${on?'Uncommit':'Commit'} ${esc(N(id))}: +${n} ${sk}"><img alt="" src="${cardURL(id)}">${on?'<span class="tag">COMMITTED</span>':`<span class="tag">+${n}</span>`}</button>`; }).join('')}</div>`
+    : `<p class="hint">No card in hand has a ${sk} icon.</p>`;
+  const uses=[];
+  if(T.icon==='C') uses.push(`<button class="chip" data-use="pt"${setup&&m.res>0?'':' disabled'}>Physical Training: spend 1 resource → +1 ${sk}${T.pt?` (×${T.pt})`:''} · ${m.res} left</button>`);
+  uses.push(T.sophie ? '<span class="note">Sophie used: +2 (Mark took 1 direct damage)</span>' : `<button class="chip" data-use="sophie"${setup?'':' disabled'}>Sophie (fast): +2 skill, Mark takes 1 direct damage</button>`);
+  if(T.weapon==='fortyFive') uses.push(`<span class="note">.45 Automatic: 1 ammo spent → ${m.ammo} left · +1 combat, +1 damage</span>`);
+  if(T.weapon==='machete') uses.push(`<span class="note">Machete: +1 combat${S.enemy.engaged?', +1 damage (only enemy engaged with you)':''}</span>`);
+  let res='', btn='';
+  if(setup) btn='<button class="chip primary" data-do="draw">Draw chaos token</button>';
+  if(T.phase==='drawing'){ res='<div class="bigtok spin" aria-hidden="true">?</div><div class="drawing">The bag stirs… a token rises.</div>'; btn='<button class="chip primary" data-do="wait" aria-disabled="true">Drawing…</button>'; }
+  if(T.phase==='result'){
+    const mod=tokMod(T.token);
+    res=`<div class="bigtok" title="${esc(tokDesc(T.token))}" style="border-color:${T.success?'var(--ok)':'var(--bad)'}">${tokSym(T.token)}</div>
+      <div><div class="verdict ${T.success?'ok':'bad'}">${T.success?'SUCCESS':'FAILURE'}</div>
+      <div class="calc">${mod==null?'Auto-fail: automatic failure.':`${tot} ${mod>=0?'+':'−'} ${Math.abs(mod)} = ${tot+mod} vs ${T.diffLabel} ${T.diff}`}</div></div>`;
+    btn='<button class="chip primary" data-do="continue">Continue</button>';
+  }
+  return `<h3>SKILL TEST · ${sk.toUpperCase()}</h3><p class="lbl">${esc(T.title)}</p>
+    <div class="eq">${terms} = <span class="tot">${tot}</span> vs <span class="term">${T.diffLabel} ${T.diff}</span></div>
+    <div class="sec"><h3>COMMIT FROM HAND</h3>${commits}</div>
+    <div class="sec"><h3>CARDS IN PLAY</h3><div class="uses">${uses.join('')}</div></div>
+    <div class="prob"><div class="pct">${Math.round(pc.p*100)}%</div><div class="bar"><i style="width:${pc.p*100}%"></i></div>
+      <div class="lbl">chance of success · ${pc.ok} of ${pc.n} tokens pass</div></div>
+    <div class="toks" aria-label="Chaos bag: green passes, red fails">${toks}</div>
+    <div class="res">${res}</div>
+    <div class="acts">${btn}</div>`;
+}
+$('#mClose').onclick=()=>closeModal(true);
+
+/* Object info (tooltip body) */
+function previewData(key){
+  const [kind,id]=key.split(':'), m=S.mark;
+  const here=w=>['mark','lola'].filter(x=>S[x].loc===w).map(x=>x==='mark'?'Mark':'Lola').join(', ')||'nobody';
+  if(kind==='loc') return REVEALED.includes(id) ? {id, info:`Shroud ${CARDS[id].shroud} · ${S.locs[id].clues} clue(s) left · Here: ${here(id)} · Connects to: ${conns(id).map(N).join(', ')}`}
+    : {id, info:'Unrevealed. Moving here would reveal it (not scripted).'};
+  if(key==='enemy') return {id:'pallid', info:`Elite · Fight 4 · Health 3 (damage ${S.enemy.dmg}/3) · Evade 2 · ${S.enemy.exhausted?'Exhausted':'Ready'} · Aloof${S.enemy.engaged?' · engaged with Mark':''} · at ${N(S.enemy.loc)}`};
+  if(kind==='card'){ const sl=SLOTS.find(s=>s[0]===id); return {id, info:`In play · ${sl[3]} · ${USES[id]()}`}; }
+  if(kind==='hand') return {id, info:'In Mark\'s hand'};
+  if(kind==='lolahand') return {id, info:id==='hidden'?'Hidden card in Lola\'s hand':'In Lola\'s hand'};
+  if(key==='mark:inv'||key==='pawn:mark') return {id:'mark', info:`Health ${9-m.dmg}/9 · Sanity ${5-m.hor}/5 · Resources ${m.res} · Clues ${m.clues} · Actions ${m.actions}/3 · Deck ${m.deck}`};
+  if(key==='pawn:lola') return {id:'lola', info:`Role: Seeker · Health 6/6 · Sanity ${6-S.lola.hor}/6 · Resources ${S.lola.res} · Hand 4 (1 Hidden)`};
+  if(key==='deck') return {def:{...BACKS.player,name:'Mark\'s Deck'}, info:`${m.deck} cards.`};
+  if(key==='disc') return {id:m.disc, info:`Discard pile · ${m.discN} cards · top: ${N(m.disc)}`};
+  if(key==='enc') return {def:{...BACKS.enc,name:'Encounter deck'}, info:'24 cards · discard: 3.'};
+  if(key==='res') return {title:'Resource pool', info:`Mark has ${m.res} resources.`};
+  if(key==='bag') return {title:'Chaos bag (Standard)', info:'Tokens: '+BAG.map(tokSym).join(' ')+'. Skull −1 (−3 with 3+ horror). Elder Sign +2 for Mark. ✖ = automatic failure.'};
+  if(['act','agenda','ref','encDisc'].includes(key)) return {id:key==='encDisc'?'rotting':key, info:key==='act'?`Clues held by investigators: ${m.clues+S.lola.clues}/4`:key==='agenda'?`Doom ${S.doom}/2`:key==='encDisc'?'Top of encounter discard (3 cards)':'Scenario reference card'};
+  return {title:key, info:''};
+}
+
+/* Log, toast, floating text */
+function log(text,kind=''){ const li=document.createElement('li'); li.textContent=text; if(kind) li.className=kind; const ol=$('#logl'); ol.appendChild(li); ol.scrollTop=ol.scrollHeight; }
+let toastT=null;
+function toast(s){ const t=$('#toast'); t.textContent=s; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2600); }
+function floatText(pos,s,cls=''){
+  const v=pos.clone().add(new THREE.Vector3(0,.6,0)).project(camera);
+  const d=document.createElement('div'); d.className='float '+cls; d.textContent=s;
+  d.style.left=((v.x+1)/2*innerWidth)+'px'; d.style.top=((1-v.y)/2*innerHeight)+'px'; $('#fx').appendChild(d);
+  gsap.fromTo(d,{y:0,opacity:0,scale:.6},{y:-50,opacity:1,scale:1.2,duration:D(.5),ease:'back.out',onComplete:()=>gsap.to(d,{opacity:0,y:-80,duration:D(.6),delay:.6,onComplete:()=>d.remove()})});
+}
+
+/* Panels + layout vars */
+const setVars=()=>{ const r=document.documentElement.style;
+  r.setProperty('--top',Math.round($('#hud').getBoundingClientRect().bottom+6)+'px');
+  r.setProperty('--bot',Math.round(innerHeight-$('#bottom').getBoundingClientRect().top+6)+'px'); };
+const ro=new ResizeObserver(setVars); ro.observe($('#hud')); ro.observe($('#bottom'));
+function toggle(btn,panel,force){
+  const open = force!=null ? force : panel.hidden;
+  panel.hidden=!open; btn.setAttribute(btn.hasAttribute('aria-pressed')?'aria-pressed':'aria-expanded',String(open));
+}
+$('#bLog').onclick=()=>toggle($('#bLog'),$('#log'));
+$('#bNotes').onclick=()=>{ toggle($('#bNotes'),$('#notes')); if(!$('#notes').hidden) toggle($('#bLog'),$('#log'),false); };
+$('#bReset').onclick=reset;
+$('#seatLola').onclick=()=>{ renderLola(); const open=$('#lolaP').hidden; toggle($('#seatLola'),$('#lolaP'),open); $('#seatMark').setAttribute('aria-pressed',String(!open)); };
+$('#seatMark').onclick=()=>{ toggle($('#seatLola'),$('#lolaP'),false); $('#seatMark').setAttribute('aria-pressed','true'); };
+$('#edgeUp').onclick=()=>setFocus('mesa');
+$('#edgeDown').onclick=()=>setFocus('mine');
+function renderLola(){
+  const L=S.lola, p=$('#lolaP');
+  p.innerHTML=`<h2>LOLA HAYES · NOT ACTIVE (view only)</h2><div class="lb">
+    <div><span class="role">ROLE · SEEKER</span> &nbsp;Will 3 · Int 3 · Com 3 · Agi 3</div>
+    <div style="margin-top:6px;color:var(--ink-dim)">Health 6/6 · Sanity ${6-L.hor}/6 (${L.hor} horror) · Resources ${L.res} · at ${N(L.loc)}</div>
+    <div class="lh">${L.hand.map(id=>`<button data-key="lolahand:${id}" aria-label="${esc(N(id))}"><img alt="" src="${cardURL(id)}"></button>`).join('')}</div>
+    <div class="acts"><button class="btn" id="lolaBack">Back to Mark</button></div></div>`;
+  p.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>showTip(b.dataset.key));
+  $('#lolaBack').onclick=()=>$('#seatMark').click();
+}
+
+/* Focus toggle: click = switch; press-and-hold (mouse/touch) = peek the other focus */
+const tg=$('#toggle'); let lpT=null, lp=false;
+tg.addEventListener('contextmenu',e=>e.preventDefault());
+tg.addEventListener('pointerdown',()=>{ lp=false; clearTimeout(lpT); lpT=setTimeout(()=>{ lp=true; peek(other(focus),'hold'); },280); });
+const lpEnd=()=>{ clearTimeout(lpT); if(lp) unpeek('hold'); };
+tg.addEventListener('pointerup',lpEnd); tg.addEventListener('pointercancel',lpEnd); tg.addEventListener('pointerleave',lpEnd);
+tg.querySelectorAll('button').forEach(b=>b.onclick=()=>{ if(lp){ lp=false; return; } setFocus(b.dataset.f); });
+
+/* Keyboard: Space toggles focus (when no control has focus), hold Shift = peek, Tab walks the objects, Esc closes */
+// the focus toggle itself counts as "no control": after clicking it, Space still switches
+const onBody = () => { const a=document.activeElement; return !a || a===document.body || a===el || tg.contains(a); };
+let shiftT=null;
+addEventListener('keydown',e=>{
+  if(M){ // modal: Esc closes (not mid-test), Tab stays inside
+    if(e.key==='Escape' && !S.test){ e.preventDefault(); closeModal(true); }
+    else if(e.key==='Tab'){
+      const f=[...$('#modal').querySelectorAll('button:not([disabled])')].filter(b=>b.offsetParent!==null);
+      const i=f.indexOf(document.activeElement);
+      if(f.length && (i<0 || (e.shiftKey && i===0) || (!e.shiftKey && i===f.length-1))){ e.preventDefault(); f[e.shiftKey?f.length-1:0].focus(); }
+    }
+    return;
+  }
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  if(e.key==='Shift'){ if(!e.repeat){ clearTimeout(shiftT); shiftT=setTimeout(()=>peek(other(focus),'shift'),140); } return; }
+  if(e.key==='Tab' && e.shiftKey){ clearTimeout(shiftT); unpeek('shift'); return; } // Shift+Tab is navigation, not a peek
+  if(e.key===' '){ if(onBody()){ e.preventDefault(); if(!e.repeat) setFocus(other(focus)); } return; }
+  if(e.key==='Escape'){ hideTip(); toggle($('#bNotes'),$('#notes'),false); $('#seatMark').click(); if(document.activeElement) document.activeElement.blur(); }
+});
+addEventListener('keyup',e=>{ if(e.key==='Shift'){ clearTimeout(shiftT); unpeek('shift'); } });
+addEventListener('blur',()=>{ clearTimeout(shiftT); unpeek('shift'); lpEnd(); });
+
+/* Reset: restore initial state and snap every view object back */
+function reset(){
+  gsap.globalTimeline.clear();
+  S=clone(INIT); seqIdx=0; freshCard=null; M=null; $('#toast').classList.remove('on'); flashL.intensity=0;
+  scene.children.filter(o=>o.userData.tmp).forEach(o=>scene.remove(o)); byKey.bag.scale.setScalar(1);
+  placePawn('mark'); placePawn('lola');
+  const e=byKey.enemy; e.visible=true; e.userData.dying=false; e.scale.setScalar(1); Object.assign(e.userData.base,{x:ENEMY_POS.x,z:ENEMY_POS.z,y:BASEY,rotY:0});
+  PILES['e:dmg'].a=[...E_DMG_A];
+  for(const k in PILES){ PILES[k].meshes.forEach(m=>scene.remove(m)); PILES[k].meshes=[]; }
+  syncAll(true);
+  toDiscard('guts'); S.mark.discN=INIT.mark.discN;
+  setPileHeight(byKey.deck,S.mark.deck);
+  for(const c of cards) c.userData.lift=0; liftKey=null;
+  hideTip(); $('#logl').innerHTML=''; $('#fx').innerHTML='';
+  log('Round 2 — Mythos: 1 doom placed on The Third Act (1/2).','sys');
+  log('Investigation phase. Mark Harrigan is active (3 actions).','sys');
+  log('Demo: click the Balcony (move), then the enemy → "Fight with .45 Automatic". Hover any object to see its actions.','sys');
+  shownView=null; setFocus('mesa');
+  refresh();
+}
+
+if(innerWidth<700) toggle($('#bLog'),$('#log'),false);
+setVars(); setFocus('mesa',true); reset(); requestAnimationFrame(loop);
+}
+})();
+</script>
+
